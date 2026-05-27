@@ -1,0 +1,31 @@
+# Production dependencies.
+#
+# Edit this file, then run `pip-compile requirements/base.in` (or let the
+# pre-commit hook do it) to regenerate `requirements/base.txt`.
+
+# Web framework
+fastapi
+uvicorn[standard]
+
+# Settings & validation
+pydantic
+pydantic-settings
+
+# Database (async Postgres)
+sqlalchemy[asyncio]
+asyncpg
+
+# Migrations
+alembic
+
+# Redis (async client lives in `redis.asyncio`)
+redis
+
+# AWS (Secrets Manager, S3, SES)
+boto3
+
+# Outbound HTTP (third-party APIs, used in src/core/utils/http_client.py)
+aiohttp
+
+# Field-level Fernet encryption
+cryptography

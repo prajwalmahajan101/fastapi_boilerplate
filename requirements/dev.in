@@ -1,0 +1,29 @@
+# Development dependencies.
+#
+# Edit this file, then run `pip-compile requirements/dev.in` (or let the
+# pre-commit hook do it) to regenerate `requirements/dev.txt`. `dev.txt`
+# is a superset of `base.txt` — installing dev installs everything.
+
+-r base.in
+
+# Dependency management
+pip-tools
+
+# Pre-commit framework
+pre-commit
+
+# Linting / formatting / docstrings (also run by pre-commit hooks)
+ruff
+pydocstyle
+darglint
+
+# Type checking
+mypy
+types-redis
+boto3-stubs[secretsmanager,s3,ses]
+
+# Tests
+pytest
+pytest-asyncio
+pytest-cov
+httpx  # FastAPI TestClient transport
