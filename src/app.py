@@ -33,6 +33,7 @@ from src.core.api_log import close_repository, init_repository
 from src.core.exceptions import register_exception_handlers
 from src.core.middleware import install_core_middleware
 from src.core.runtime import configure
+from src.core.utils.crypto import _fernet
 from src.core.utils.fire_and_forget import drain_all
 from src.core.utils.http_client import AsyncAPIClient
 from src.core.utils.logging import setup_logging
@@ -53,6 +54,11 @@ async def lifespan(app: FastAPI):
         Control while the app serves requests.
     """
     configure(settings)
+    # Probe the field-encryption key once at boot. A missing or broken
+    # FERNET configuration would otherwise raise on the first encrypt /
+    # decrypt request and present as a 500 to the caller; failing the
+    # lifespan keeps the process out of the load balancer instead.
+    _fernet()
     # Give Redis a short window to come up before any resilience provider
     # is first called. Once a provider cached an in-memory backend (because
     # the very first ping failed), no probe can rebuild it — a boot-time
