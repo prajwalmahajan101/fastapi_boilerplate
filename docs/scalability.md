@@ -46,6 +46,25 @@ alias.
 The pybreaker tier never touches Redis; the throttle "global" scope
 uses a Lua script for atomic counter ops.
 
+### One Redis cluster, many services
+
+When several services share a single Redis cluster, the cache layer
+MUST namespace its keys per deployment — otherwise two services step
+on each other's debounce / blacklist entries. Set
+`cache_key_prefix` explicitly per environment:
+
+```dotenv
+# service A
+CACHE_KEY_PREFIX=orders-prod
+# service B
+CACHE_KEY_PREFIX=billing-prod
+```
+
+The circuit-breaker and throttle tiers carry their own prefixes
+(`circuit_breaker_key_prefix`, the throttle scope name) so they are
+already isolated. Only the cache tier shares a flat namespace by
+default.
+
 ## Audit log
 
 The `api_log` Postgres backend buffers rows in memory and flushes

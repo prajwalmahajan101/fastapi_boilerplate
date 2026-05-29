@@ -32,11 +32,46 @@ by `SelectiveCORSMiddleware`, which can exclude path prefixes.
 ## Rate limiting
 
 `rate_limit(scope, rate)` dependencies gate routes. Scopes: `endpoint`,
-`burst`, `ip`, `global`, `user_tier`. Backed by Redis with an in-memory
-fallback; `RateLimitHeadersMiddleware` emits `X-RateLimit-*` and a 429 +
-`Retry-After` when a bucket is exhausted. Principal resolution reads
-`request.state.system_id` / `api_key_id` if an auth layer sets them,
-otherwise falls back to client IP.
+`burst`, `ip`, `global`, `user_tier`, `auth`. Backed by Redis with an
+in-memory fallback; `RateLimitHeadersMiddleware` emits `X-RateLimit-*`
+and a 429 + `Retry-After` when a bucket is exhausted. Principal
+resolution reads `request.state.system_id` / `api_key_id` if an auth
+layer sets them, otherwise falls back to client IP.
+
+The `auth` scope mirrors Django's `AuthEndpointThrottle` — a narrow
+per-IP defence-in-depth limit (default `5/min`) applied to the
+unauthenticated `/auth/*` surface. The bucket is namespaced as
+`auth:<ip>` so it never shares a counter with the generic `ip` scope.
+
+## Outbound HTTP — SSRF + allow-list
+
+Two layers gate every outbound HTTP call made through `AsyncAPIClient`:
+
+1. **SSRF guard with DNS pinning.** `resolve_and_validate(url)` rejects
+   non-`http`/`https` schemes and any URL that resolves to a non-public
+   address (RFC1918, loopback, link-local, multicast, reserved). It
+   returns the resolved IP set; `AsyncAPIClient.request` then pins that
+   set on a `ContextVar` and a custom aiohttp resolver returns *only*
+   those IPs at dispatch time. Without the pin, a malicious zone could
+   return a public IP at validation and a private one at the actual
+   request (classic DNS-rebinding TOCTOU).
+
+2. **Outbound URL allow-list.** `outbound_url_allowlist` is a positive
+   list of hosts the service is allowed to call:
+
+   ```dotenv
+   OUTBOUND_URL_ALLOWLIST='["partner.example.com",".internal.example"]'
+   ```
+
+   * `example.com` — exact host match.
+   * `.example.com` — suffix (apex + any subdomain).
+   * `*` or empty list — permissive (default; use in dev).
+
+   Mismatches raise `OutboundURLNotAllowedError` (502 envelope). Pair
+   with the SSRF guard: the SSRF check blocks private addresses, the
+   allow-list blocks legitimate public hosts the service was never
+   supposed to contact (data-exfil via a misconfigured partner URL,
+   accidental request to a typo'd domain).
 
 ## SSRF protection
 

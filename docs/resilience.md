@@ -63,6 +63,7 @@ dependency. Scopes:
 | `user_tier` | User-attached tier (defined on the user model). |
 | `global` | A single shared bucket — uses Lua on Redis. |
 | `burst` | Token bucket with explicit refill. |
+| `auth` | Per-IP under the `auth:` namespace. Default 5/min, applied to `/auth/*`. See [`security.md`](security.md). |
 
 Rates use the `"<n>/<unit>"` syntax: `"60/min"`, `"10/sec"`, `"1000/hour"`.
 
