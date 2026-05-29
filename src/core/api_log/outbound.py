@@ -26,6 +26,10 @@ from src.core.api_log.sanitizers import (
     truncate,
 )
 from src.core.context import get_request_id
+from src.core.exceptions.utils import (
+    exception_response_payload,
+    exception_wire_status,
+)
 from src.core.runtime import get_settings
 from src.core.utils.timing import perf_timer
 
@@ -77,6 +81,7 @@ def log_outbound_request(service_name: str) -> Callable[[F], F]:
             """
             token = outbound_response_meta_ctx.set(None)
             result: Any = _UNSET
+            exc_obj: Exception | None = None
             exc_type: str | None = None
             exc_msg: str | None = None
             with perf_timer() as t:
@@ -84,6 +89,7 @@ def log_outbound_request(service_name: str) -> Callable[[F], F]:
                     result = await func(*args, **kwargs)
                     return result
                 except Exception as exc:
+                    exc_obj = exc
                     exc_type = type(exc).__name__
                     exc_msg = build_error_message(exc)
                     raise
@@ -98,6 +104,7 @@ def log_outbound_request(service_name: str) -> Callable[[F], F]:
                                 result=result,
                                 duration_ms=float(t.elapsed_ms),
                                 meta=meta,
+                                exc=exc_obj,
                                 exc_type=exc_type,
                                 exc_msg=exc_msg,
                             )
@@ -115,6 +122,7 @@ def _build_outbound_log(
     result: Any,
     duration_ms: float,
     meta: dict[str, Any] | None,
+    exc: Exception | None,
     exc_type: str | None,
     exc_msg: str | None,
 ) -> ApiLog:
@@ -126,12 +134,20 @@ def _build_outbound_log(
     in ``func_kwargs`` that aren't HTTP plumbing land in the ``extra``
     JSON column for diagnostic context.
 
+    When the call raised before the HTTP client published any meta
+    (e.g. timeout, DNS failure, transport-layer ``APIError`` on a
+    non-2xx response), the upstream status and body are recovered from
+    the exception itself via :func:`exception_wire_status` and
+    :func:`exception_response_payload` so the audit row still carries
+    those columns.
+
     Args:
         func_kwargs: The decorated method's kwargs as received.
         service_name: Logical service tag for the row.
         result: Whatever the method returned.
         duration_ms: Wall time spent in the method.
         meta: Metadata published by ``AsyncAPIClient._request``.
+        exc: The exception raised by the wrapped method (if any).
         exc_type: Class name of the raised exception, if any.
         exc_msg: Composite error message from :func:`build_error_message`.
 
@@ -172,6 +188,8 @@ def _build_outbound_log(
         raw_resp_hdrs = meta.get("response_headers")
         if raw_resp_hdrs:
             resp_headers = redact_headers(raw_resp_hdrs)
+    elif exc is not None:
+        status_code = exception_wire_status(exc)
 
     resp_body: str | None = None
     if settings.api_log_capture_response_body:
@@ -181,6 +199,12 @@ def _build_outbound_log(
             resp_body = serialize_body(
                 meta["response_body"], settings.api_log_max_body_size
             )
+        elif exc is not None:
+            payload = exception_response_payload(exc)
+            if payload is not None:
+                resp_body = serialize_body(
+                    payload, settings.api_log_max_body_size
+                )
 
     _http_keys = {
         "method",
