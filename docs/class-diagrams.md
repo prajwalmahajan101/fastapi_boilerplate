@@ -103,3 +103,68 @@ register_exception_mapping(PaymentDeclinedError, status.HTTP_402_PAYMENT_REQUIRE
 
 (`UpstreamPushError` ships as a generic "push to an upstream API failed"
 example — rename or remove it for your domain.)
+
+## API audit log
+
+`src.core.api_log` is split into focused modules. The two public
+decorators are thin: per-direction setup, a `build_log` closure, then
+delegation to the shared `capture_and_dispatch` skeleton in
+`dispatch.py`. Pure helpers live alongside in `sanitizers.py` /
+`error_messages.py`. `decorators.py` is a re-export shim that keeps
+the historical import path stable.
+
+```mermaid
+classDiagram
+    class log_inbound_request {
+        +service_name: str
+        +decorator(func)
+    }
+    class log_outbound_request {
+        +service_name: str
+        +decorator(func)
+    }
+    class capture_and_dispatch {
+        +func, args, kwargs, build_log
+        +returns awaitable
+    }
+    class CaptureState {
+        +result: Any
+        +exc: Exception | None
+        +elapsed_ms: float
+        +extras: dict
+    }
+    class FireAndForgetQueue {
+        +max_pending: int
+        +submit(coro)
+        +drain()
+    }
+    class persist_log {
+        +log: ApiLog
+        +never raises
+    }
+    class sanitizers {
+        +redact_headers()
+        +truncate()
+        +serialize_body()
+        +audit_safe()
+        +compute_ttl()
+    }
+    class build_error_message {
+        +exc: Exception
+        +returns pipe-delimited str
+    }
+    class ApiLogRepository {
+        +save(log)
+    }
+
+    log_inbound_request --> capture_and_dispatch : delegates
+    log_outbound_request --> capture_and_dispatch : delegates
+    capture_and_dispatch --> CaptureState : populates
+    capture_and_dispatch --> FireAndForgetQueue : submits via fire_and_forget
+    FireAndForgetQueue --> persist_log : drains
+    persist_log --> ApiLogRepository : save
+    log_inbound_request ..> sanitizers : redact / truncate
+    log_outbound_request ..> sanitizers : redact / truncate / audit_safe
+    log_inbound_request ..> build_error_message : on exception
+    log_outbound_request ..> build_error_message : on exception
+```
