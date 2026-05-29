@@ -32,7 +32,12 @@ async def me(user = Depends(current_user)):
 `X-API-Key: <token>` against the `APIKey` table. Lookup uses the
 8-char prefix + constant-time compare; `last_used_at` is debounced
 via the resilience cache so a busy key does not generate one UPDATE
-per request. **Default** — enabled out of the box.
+per request. The UPDATE itself runs in a fire-and-forget background
+queue (`api_key_last_used`, drained at shutdown) — so the auth
+dependency stays read-only and may lag the observed `last_used_at`
+by a few seconds. The audit log (`log_inbound_request`) is the
+authoritative record of "this key was used"; `last_used_at` is
+observability metadata. **Default** — enabled out of the box.
 
 ### `jwt`
 

@@ -36,6 +36,7 @@ from src.core.exceptions.auth import (
     APIKeyRevokedError,
     AuthenticationFailedError,
 )
+from src.core.utils.fire_and_forget import FireAndForgetQueue, register
 
 if TYPE_CHECKING:
     from fastapi import Request
@@ -45,6 +46,14 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _LAST_USED_DEBOUNCE_SECONDS = 300
+_LAST_USED_TIMEOUT_SECONDS = 5.0
+
+# Background queue for ``last_used_at`` UPDATEs. Keeping the write off
+# the auth dependency keeps the read path read-only (ISSUE-026) and
+# ``drain_all()`` at shutdown waits for in-flight writes.
+_last_used_queue = register(
+    FireAndForgetQueue(max_pending=500, name="api_key_last_used")
+)
 
 
 def generate_api_key() -> tuple[str, str]:
@@ -103,6 +112,47 @@ async def _debounce_last_used(api_key_id: int) -> bool:
         return True
 
 
+async def _persist_last_used(api_key_id: int, ts: datetime) -> None:
+    """Update ``APIKey.last_used_at`` in a fresh short-lived session.
+
+    Runs from :data:`_last_used_queue`. Opens its own session because
+    the originating request's session is gone by the time this awaits;
+    bounds the work with a 5-second timeout so a stalled write cannot
+    hold the queue. All errors are logged and swallowed — the audit
+    log is the source of truth for "this key was used", so a missed
+    timestamp is acceptable.
+
+    Args:
+        api_key_id: Primary key of the row to update.
+        ts: Timestamp to stamp (typically ``datetime.now(timezone.utc)``
+            captured at the originating request).
+    """
+    import asyncio  # noqa: PLC0415
+
+    from sqlalchemy import update  # noqa: PLC0415
+
+    from src.core.utils.db import get_app_engine, get_sessionmaker  # noqa: PLC0415
+    from src.model.auth import APIKey  # noqa: PLC0415
+
+    try:
+        engine = await get_app_engine()
+        maker = get_sessionmaker(engine)
+        async with asyncio.timeout(_LAST_USED_TIMEOUT_SECONDS):
+            async with maker() as bg_session:
+                async with bg_session.begin():
+                    await bg_session.execute(
+                        update(APIKey)
+                        .where(APIKey.id == api_key_id)
+                        .values(last_used_at=ts)
+                    )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "APIKey last_used_at update failed for id=%s: %s",
+            api_key_id,
+            exc,
+        )
+
+
 class APIKeyProvider:
     """X-API-Key :class:`AuthProvider` implementation."""
 
@@ -153,8 +203,13 @@ class APIKeyProvider:
             raise AuthenticationFailedError("User account is disabled.")
 
         if await _debounce_last_used(api_key.id):
-            api_key.last_used_at = datetime.now(timezone.utc)
-            await session.flush()
+            # Fire-and-forget: the auth dependency stays read-only and a
+            # stalled write cannot stall the request. last_used_at is
+            # observability metadata, not authoritative state — the
+            # audit log records every authed call regardless.
+            _last_used_queue.submit(
+                _persist_last_used(api_key.id, datetime.now(timezone.utc))
+            )
 
         # Stash on request.state so handlers / RBAC checks can pull the
         # owning key out without re-running the lookup. (The registry
