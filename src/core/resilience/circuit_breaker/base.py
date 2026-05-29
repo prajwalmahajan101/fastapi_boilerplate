@@ -97,9 +97,14 @@ class BaseCircuitBreaker(ABC):
         """Execute ``func`` through the breaker — async-aware.
 
         Raises ``ServiceUnavailableError`` if the breaker is OPEN.
-        Otherwise runs ``func`` (awaiting if coroutine), records
-        success/failure, and re-raises the original exception on
-        failure.
+        Otherwise runs ``func`` (awaiting if coroutine) and records
+        success on completion. Only :class:`ExternalServiceError`
+        subclasses count as transport failures and trip
+        ``record_failure`` — other exceptions (including non-transport
+        ``BaseCustomError`` business errors, or unhandled programming
+        errors) propagate without affecting the breaker's failure
+        counter so a 4xx-noisy upstream cannot trip the breaker against
+        an otherwise healthy dependency.
 
         Args:
             func: Callable to dispatch (sync or async).
@@ -111,9 +116,15 @@ class BaseCircuitBreaker(ABC):
 
         Raises:
             ServiceUnavailableError: When the breaker is OPEN.
-            Exception: Propagated from ``func`` after recording failure.
+            ExternalServiceError: Propagated from ``func`` after
+                recording failure on the breaker. Any other exception
+                ``func`` raises is also re-raised, but does not count as
+                a breaker failure.
         """
-        from src.core.exceptions.infrastructure import ServiceUnavailableError
+        from src.core.exceptions.infrastructure import (
+            ExternalServiceError,
+            ServiceUnavailableError,
+        )
 
         if not await self.is_available():
             remaining = await self.time_until_retry()
@@ -129,11 +140,12 @@ class BaseCircuitBreaker(ABC):
             result = func(*args, **kwargs)
             if inspect.iscoroutine(result):
                 result = await result
-            await self.record_success()
-            return result
-        except Exception as exc:
+        except ExternalServiceError as exc:
             await self.record_failure(exc)
             raise
+        else:
+            await self.record_success()
+            return result
 
 
 class BaseCircuitBreakerRegistry(ABC):
