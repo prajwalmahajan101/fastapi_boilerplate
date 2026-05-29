@@ -197,6 +197,13 @@ class CoreSettings(BaseSettings):
 
     # ── SSRF ───────────────────────────────────────────────────────────
     ssrf_block_private_ips: bool = True
+    #: Positive list of hosts the outbound HTTP layer is allowed to
+    #: call. Empty list (default) and ``"*"`` are permissive — matches
+    #: the historical behaviour. Entries are exact hosts
+    #: (``"example.com"``) or suffix patterns (``".example.com"``).
+    #: Prod / UAT should set this explicitly; the SSRF private-IP
+    #: block is unrelated and stays enabled regardless.
+    outbound_url_allowlist: list[str] = Field(default_factory=list)
 
     # ── Response security headers ──────────────────────────────────────
     # Toggle for SecurityHeadersMiddleware (HSTS, X-Content-Type-Options,
@@ -261,6 +268,13 @@ class CoreSettings(BaseSettings):
     )
     circuit_breaker_redis_alias: str = "default"
     circuit_breaker_key_prefix: str = "cb"
+    #: Prepended to every key the Redis cache backend writes. Two
+    #: deployments sharing a Redis cluster MUST set distinct prefixes
+    #: to avoid colliding (the throttle + breaker tiers have their
+    #: own prefixes; this one covers ``core.resilience.cache``,
+    #: which backs the API-key debounce and the JWT jti blacklist).
+    #: The in-memory fallback is per-process and ignores the prefix.
+    cache_key_prefix: str = "app"
     #: Selects the registry tier built by
     #: ``core.resilience.circuit_breaker.provider``.
     #:

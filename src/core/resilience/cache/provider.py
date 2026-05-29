@@ -49,14 +49,22 @@ async def _create_cache(alias: str) -> BaseCacheBackend:
         register_boot_fallback,
         register_for_recovery,
     )
+    from src.core.runtime import get_settings
     from src.core.utils.redis import get_redis_client
 
     recovery_alias = f"cache:{alias}"
+    key_prefix = getattr(get_settings(), "cache_key_prefix", "") or ""
     try:
         client = await get_redis_client(alias)
         await client.ping()
-        logger.info("Cache backend ready (redis, alias=%s)", alias)
-        backend = RedisCacheBackend(client, alias=recovery_alias)
+        logger.info(
+            "Cache backend ready (redis, alias=%s, key_prefix=%r)",
+            alias,
+            key_prefix,
+        )
+        backend = RedisCacheBackend(
+            client, alias=recovery_alias, key_prefix=key_prefix
+        )
         register_for_recovery(backend)
         return backend
     except Exception as exc:  # noqa: BLE001

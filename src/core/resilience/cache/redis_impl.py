@@ -39,7 +39,13 @@ _RECOVERY_PROBE_INTERVAL_S = 30.0
 class RedisCacheBackend(BaseCacheBackend):
     """Distributed cache using ``redis.asyncio``."""
 
-    def __init__(self, redis_client: Any, *, alias: str = "cache:default") -> None:
+    def __init__(
+        self,
+        redis_client: Any,
+        *,
+        alias: str = "cache:default",
+        key_prefix: str = "",
+    ) -> None:
         """Bind the backend to an ``aioredis``-style async client.
 
         Args:
@@ -47,6 +53,11 @@ class RedisCacheBackend(BaseCacheBackend):
                 or compatible).
             alias: Stable identifier used by the recovery monitor; the
                 provider passes ``"cache:<config-alias>"``.
+            key_prefix: String prepended to every key before the Redis
+                call. Empty by default; production deployments should
+                pass ``settings.cache_key_prefix`` so two services
+                sharing a Redis cluster cannot collide. The in-memory
+                fallback is per-process and does not need the prefix.
         """
         self._redis = redis_client
         self._fallback = InMemoryCacheBackend()
@@ -57,6 +68,11 @@ class RedisCacheBackend(BaseCacheBackend):
         # immediately.
         self._last_probe_at: float = 0.0
         self.alias = alias
+        self._key_prefix = f"{key_prefix}:" if key_prefix else ""
+
+    def _k(self, key: str) -> str:
+        """Apply :attr:`_key_prefix` to a logical key."""
+        return f"{self._key_prefix}{key}"
 
     @property
     def health(self) -> BackendHealth:
@@ -158,7 +174,7 @@ class RedisCacheBackend(BaseCacheBackend):
         if not await self._try_recover():
             return await self._fallback.get(key)
         try:
-            raw = await self._redis.get(key)
+            raw = await self._redis.get(self._k(key))
         except Exception as exc:  # noqa: BLE001
             await self._flip_fallback("get", exc)
             return await self._fallback.get(key)
@@ -180,9 +196,9 @@ class RedisCacheBackend(BaseCacheBackend):
         try:
             payload = _encode(value)
             if ttl:
-                await self._redis.set(key, payload, ex=ttl)
+                await self._redis.set(self._k(key), payload, ex=ttl)
             else:
-                await self._redis.set(key, payload)
+                await self._redis.set(self._k(key), payload)
         except Exception as exc:  # noqa: BLE001
             await self._flip_fallback("set", exc)
             await self._fallback.set(key, value, ttl)
@@ -197,7 +213,7 @@ class RedisCacheBackend(BaseCacheBackend):
             await self._fallback.delete(key)
             return
         try:
-            await self._redis.delete(key)
+            await self._redis.delete(self._k(key))
         except Exception as exc:  # noqa: BLE001
             await self._flip_fallback("delete", exc)
             await self._fallback.delete(key)
@@ -224,10 +240,11 @@ class RedisCacheBackend(BaseCacheBackend):
         try:
             # We use INCR — redis-py creates the key with value 1 if missing.
             # To match the contract (raise on missing), check existence first.
-            exists = await self._redis.exists(key)
+            prefixed = self._k(key)
+            exists = await self._redis.exists(prefixed)
             if not exists:
                 raise KeyError(key)
-            return int(await self._redis.incr(key))
+            return int(await self._redis.incr(prefixed))
         except KeyError:
             raise
         except Exception as exc:  # noqa: BLE001
@@ -252,7 +269,7 @@ class RedisCacheBackend(BaseCacheBackend):
         try:
             payload = _encode(value)
             # NX = set only if not exists; returns True on set, None on no-op.
-            result = await self._redis.set(key, payload, nx=True, ex=ttl)
+            result = await self._redis.set(self._k(key), payload, nx=True, ex=ttl)
             return bool(result)
         except Exception as exc:  # noqa: BLE001
             await self._flip_fallback("add", exc)
