@@ -285,6 +285,20 @@ class CoreSettings(BaseSettings):
     #: writes to drain before forcing the process to exit. Bounded so a
     #: degraded audit backend cannot hang shutdown indefinitely.
     api_log_drain_timeout_seconds: float = 30.0
+    #: Max rows the postgres backend flushes in a single bulk INSERT.
+    #: Higher = fewer transactions but larger statements. Tune against
+    #: the audit row width (bodies + headers + extra) so a flush stays
+    #: comfortably under the statement size cap.
+    api_log_batch_size: int = 100
+    #: Max seconds the postgres backend waits to fill a batch before
+    #: flushing whatever is buffered. Caps how long an audit row sits
+    #: in memory before it lands in Postgres on a slow producer.
+    api_log_batch_max_interval_seconds: float = 1.0
+    #: Soft cap on the in-memory queue the postgres backend buffers
+    #: against. Overflow drops the *newest* row with a warning (same
+    #: contract as ``FireAndForgetQueue``) so a degraded Postgres
+    #: cannot leak unbounded memory in the producer process.
+    api_log_batch_queue_size: int = 5000
 
     @classmethod
     def settings_customise_sources(

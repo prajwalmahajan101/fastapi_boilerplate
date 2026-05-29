@@ -44,6 +44,11 @@ returns / raises; persistence happens off the hot path.
 - A slow audit query is visible only on the audit backend's own
   metrics, not the request-path SLOs.
 - The producer-side contract is simple and uniform: submit, move on.
+- The Postgres backend batches rows behind an internal queue and
+  flushes ``api_log_batch_size`` rows per transaction (or whatever has
+  accumulated after ``api_log_batch_max_interval_seconds``). That keeps
+  audit writes off the request-path connection pool — one transaction
+  per batch instead of one per row.
 
 ### Negative
 
@@ -63,6 +68,11 @@ returns / raises; persistence happens off the hot path.
 
 - Operators need to watch two metrics: queue depth (`max_pending`
   saturation) and repository save error rate.
+- The Postgres backend now also has an internal batching queue
+  (``api_log_batch_queue_size``). Overflow surfaces as a
+  ``PostgresApiLogRepository queue full`` warning carrying
+  ``service_name`` / ``direction`` / ``request_id``; treat it the
+  same as the outer ``FireAndForgetQueue`` overflow.
 
 ## Alternatives considered
 
@@ -81,6 +91,7 @@ returns / raises; persistence happens off the hot path.
 ## References
 
 - Implementation: `src/core/api_log/dispatch.py`,
+  `src/core/api_log/backends/postgres.py`,
   `src/core/utils/fire_and_forget.py`.
 - Regression test for the builder-failure guard:
   `tests/core/api_log/test_dispatch.py::test_capture_swallows_builder_failure_preserves_handler_exception`.

@@ -32,5 +32,17 @@ this project does not yet publish releases, so changes are grouped under
   from logs alone. `capture_and_dispatch` takes optional `service_name=` and
   `direction=` kwargs for the build-fail correlation; inbound / outbound
   decorators pass them. (ISSUE-021)
+
+### Performance
+
+- `PostgresApiLogRepository` now batches audit writes behind an internal
+  queue: a single background drain task accumulates up to
+  `api_log_batch_size` rows (or up to `api_log_batch_max_interval_seconds`
+  of idle) and flushes them as one bulk `INSERT ... ON CONFLICT DO NOTHING`.
+  The audit subsystem no longer pays a per-row `engine.begin()` round-trip
+  on the shared pool, so it stops competing with request-path queries under
+  burst load. New settings: `api_log_batch_size` (100),
+  `api_log_batch_max_interval_seconds` (1.0s),
+  `api_log_batch_queue_size` (5000). (ISSUE-019)
 </content>
 </invoke>

@@ -36,7 +36,12 @@ async def init_repository() -> None:
             from src.core.utils.db import get_app_engine
 
             engine = await get_app_engine(settings)
-            _repository = PostgresApiLogRepository(engine)
+            _repository = PostgresApiLogRepository(
+                engine,
+                batch_size=settings.api_log_batch_size,
+                flush_interval_s=settings.api_log_batch_max_interval_seconds,
+                queue_size=settings.api_log_batch_queue_size,
+            )
     else:
         if backend != "noop":
             logger.warning("Unknown api_log_backend '%s'; using noop.", backend)
