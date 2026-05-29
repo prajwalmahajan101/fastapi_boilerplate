@@ -44,6 +44,28 @@ pip install --require-hashes -r requirements/base.lock.txt
 The `--require-hashes` flag means any tampering / mirror-substitution
 fails the install.
 
+## Pre-push drift gate
+
+`make deps-check` re-runs `pip-compile` inside an ephemeral container
+per layer and fails when any `requirements/*.txt` is out of sync with
+its `.in`. It is slow (~30–60 s per layer), so we don't want it on
+every commit — only when a push actually touches dependency inputs.
+
+`scripts/git-hooks/pre-push` is the selective gate. Install it once:
+
+```bash
+make install-hooks
+```
+
+That symlinks `.git/hooks/pre-push` → `scripts/git-hooks/pre-push`. On
+every subsequent push the hook inspects the pushed refspecs and runs
+`make deps-check` only when the diff includes `requirements/*.{in,txt}`
+(including `base.lock.txt`) or the `Makefile`. Pushes touching nothing
+else are no-ops at hook time.
+
+Bypass with `git push --no-verify` only when you have a documented
+reason (e.g. an in-flight lock regeneration handed off to CI).
+
 ## Auditing
 
 ```bash
