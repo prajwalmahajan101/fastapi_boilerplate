@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.auth.base import AuthResult
 from src.auth.jwt import mint_token_pair
 from src.core.api_log import log_inbound_request
+from src.core.context import get_request_id
 from src.core.db.dependencies import get_session
 from src.core.db.transaction import atomic
 from src.core.exceptions.auth import AuthenticationFailedError
@@ -47,9 +48,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _oauth_client: "OAuth | None" = None
-_GOOGLE_DISCOVERY = (
-    "https://accounts.google.com/.well-known/openid-configuration"
-)
+_GOOGLE_DISCOVERY = "https://accounts.google.com/.well-known/openid-configuration"
 
 
 def _get_oauth_client() -> "OAuth":
@@ -99,9 +98,7 @@ def _check_hosted_domain(claims: dict[str, Any]) -> None:
         )
 
 
-async def _upsert_user(
-    session: AsyncSession, claims: dict[str, Any]
-) -> "User":
+async def _upsert_user(session: AsyncSession, claims: dict[str, Any]) -> "User":
     """Look up or create the ``User`` row matching the verified email.
 
     Args:
@@ -232,7 +229,19 @@ async def google_callback(
         token = await oauth.google.authorize_access_token(request)
     except Exception as exc:  # noqa: BLE001
         # Authlib raises a family of errors here; collapsing them is
-        # fine because the user-facing message is identical.
+        # fine because the user-facing message is identical, but oncall
+        # needs the exact subclass + message to triage (invalid code,
+        # clock skew, discovery fetch failure, mismatched state, …).
+        logger.warning(
+            "OAuth callback failed",
+            extra={
+                "event": "oauth_callback_failed",
+                "provider": "google",
+                "exc_type": type(exc).__name__,
+                "exc_msg": str(exc),
+                "request_id": get_request_id(),
+            },
+        )
         raise AuthenticationFailedError("Google OAuth failed.") from exc
 
     claims = token.get("userinfo") or {}
