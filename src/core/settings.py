@@ -19,7 +19,7 @@ import logging
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic_settings.sources import PydanticBaseSettingsSource
 
@@ -261,6 +261,81 @@ class CoreSettings(BaseSettings):
     )
     circuit_breaker_redis_alias: str = "default"
     circuit_breaker_key_prefix: str = "cb"
+    #: Selects the registry tier built by
+    #: ``core.resilience.circuit_breaker.provider``.
+    #:
+    #: * ``"auto"`` (default) — try Redis, fall back to the async
+    #:   in-memory registry on connection failure. Matches the
+    #:   pre-existing behaviour.
+    #: * ``"redis"`` — force Redis; degrade only on connection failure
+    #:   (same fallback as ``"auto"``).
+    #: * ``"memory"`` — skip Redis entirely; per-process state only.
+    #: * ``"pybreaker"`` — build a process-local ``PyBreakerRegistry``
+    #:   (third-party in-process tier) with no Redis attempt.
+    circuit_breaker_backend: Literal["auto", "redis", "memory", "pybreaker"] = "auto"
+
+    # ── Auth (pluggable provider registry) ─────────────────────────────
+    #: Ordered list of provider names ``src.auth.registry`` consults on
+    #: each request. The first provider that returns an ``AuthResult``
+    #: wins. Default is ``["api_key"]`` (matches the pre-pluggable
+    #: behaviour). Set ``AUTH_ENABLED_PROVIDERS='["jwt","api_key"]'`` to
+    #: let bearer JWTs authenticate first and fall through to API keys.
+    auth_enabled_providers: list[str] = Field(default_factory=lambda: ["api_key"])
+
+    #: HS256 / RS256 signing key for the JWT provider. ``SecretStr`` so
+    #: it never lands in ``repr()`` or accidental log dumps. Required
+    #: when ``"jwt"`` appears in ``auth_enabled_providers``.
+    jwt_signing_key: SecretStr | None = None
+    jwt_algorithm: Literal["HS256", "RS256"] = "HS256"
+    jwt_issuer: str | None = None
+    jwt_audience: str | None = None
+    jwt_access_ttl_seconds: int = 900
+    jwt_refresh_ttl_seconds: int = 60 * 60 * 24 * 14
+    #: Cache alias used for the refresh-token ``jti`` blacklist. Reuses
+    #: the existing resilience cache so logout survives worker restarts
+    #: when Redis is the backing tier.
+    jwt_blacklist_cache_alias: str = "default"
+
+    #: Google OAuth 2.0 client credentials. Required when
+    #: ``"oauth_google"`` appears in ``auth_enabled_providers``.
+    google_oauth_client_id: str | None = None
+    google_oauth_client_secret: SecretStr | None = None
+    google_oauth_redirect_uri: str | None = None
+    #: Optional comma-separated allow-list of hosted-domain values. Empty
+    #: means accept any verified Google account.
+    google_oauth_allowed_domains: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _validate_auth_provider_requirements(self) -> CoreSettings:
+        """Fail fast when an enabled provider is missing its config.
+
+        The provider registry skips unknown names with a warning, but a
+        provider that *is* implemented and listed in
+        ``auth_enabled_providers`` must have its credentials ready
+        before the app accepts traffic.
+        """
+        enabled = set(self.auth_enabled_providers or [])
+        if "jwt" in enabled and self.jwt_signing_key is None:
+            raise ValueError(
+                "auth_enabled_providers contains 'jwt' but jwt_signing_key "
+                "is unset. Set JWT_SIGNING_KEY or remove 'jwt' from the list."
+            )
+        if "oauth_google" in enabled:
+            missing = [
+                name
+                for name, value in (
+                    ("google_oauth_client_id", self.google_oauth_client_id),
+                    ("google_oauth_client_secret", self.google_oauth_client_secret),
+                    ("google_oauth_redirect_uri", self.google_oauth_redirect_uri),
+                )
+                if value is None
+            ]
+            if missing:
+                raise ValueError(
+                    "auth_enabled_providers contains 'oauth_google' but "
+                    f"required settings are unset: {', '.join(missing)}."
+                )
+        return self
 
     # ── Rate limit ─────────────────────────────────────────────────────
     rate_limit_headers_enabled: bool = True
