@@ -33,6 +33,7 @@ from src.core.utils.http_payloads import (
 from src.core.utils.logging import get_logger
 from src.core.utils.ssrf import (
     assert_allowed_url,
+    assert_public_url,
     pinned_dns,
     resolve_and_validate,
 )
