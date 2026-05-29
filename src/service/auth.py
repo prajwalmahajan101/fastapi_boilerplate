@@ -67,9 +67,15 @@ class APIKeyService(BaseService[APIKey]):
     async def revoke(self, *, api_key_id: int, user: Any) -> tuple[bool, bool]:
         """Soft-revoke an active key owned by ``user``.
 
-        The lookup is scoped to ``user.id`` so a caller cannot revoke
-        a key they do not own. Idempotent: re-revoking returns
-        ``already_revoked=True`` without raising.
+        Takes a ``FOR UPDATE`` row lock on the API-key row so two
+        concurrent revoke requests serialise — the loser blocks until
+        the winner commits, then re-reads the now-revoked row and
+        returns ``(False, True)`` instead of racing both into
+        ``(True, False)``. Idempotent for the same reason: re-revoking
+        is observed as ``already_revoked=True``.
+
+        Lookup is scoped to ``user.id`` so a caller cannot revoke a
+        key they do not own.
 
         Args:
             api_key_id: Primary key of the row to revoke.
@@ -82,7 +88,7 @@ class APIKeyService(BaseService[APIKey]):
                 * ``(False, False)`` — no active key with that id for
                   this user; the caller should return 404.
         """
-        api_key = await self.repository.get_by_id(api_key_id)
+        api_key = await self.repository.get_by_id_for_update(api_key_id)
         if api_key is None or api_key.user_id != user.id:
             return (False, False)
         if api_key.is_revoked:

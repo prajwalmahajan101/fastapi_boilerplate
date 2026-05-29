@@ -78,6 +78,32 @@ class APIKeyRepository(BaseRepository[APIKey]):
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
+    async def get_by_id_for_update(self, api_key_id: int) -> APIKey | None:
+        """Fetch one ``APIKey`` row under a ``FOR UPDATE`` lock.
+
+        Used by :meth:`APIKeyService.revoke` so two concurrent revoke
+        requests serialise on the row: the loser blocks until the
+        winner's transaction commits, then re-reads the now-revoked
+        row and returns ``(False, True)`` instead of double-stamping
+        ``revoked_at``. ``of=APIKey`` scopes the lock so a joined User
+        row is not locked unnecessarily — matches Django's
+        ``select_for_update(of=("self",))``.
+
+        Args:
+            api_key_id: Primary key of the row to lock.
+
+        Returns:
+            The locked row, or ``None`` if no row with that id exists.
+        """
+        stmt = (
+            select(APIKey)
+            .where(APIKey.id == api_key_id)
+            .with_for_update(of=APIKey)
+            .limit(1)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def get_active_by_prefix(self, prefix: str) -> APIKey | None:
         """Return the active, non-revoked key matching ``prefix``."""
         stmt = (
