@@ -56,7 +56,7 @@ async def create_item(
     async with atomic(session):
         item = await service.create(payload.model_dump())
     return SuccessResponse(
-        data=ItemRead.model_validate(item).model_dump(),
+        data=ItemRead.model_validate(item),
         message="Item created.",
         status_code=status.HTTP_201_CREATED,
     )
@@ -90,7 +90,7 @@ async def list_items(
     service = ItemService(session)
     items, total = await service.list_paginated(page=page, size=size)
     return PaginatedResponse(
-        items=[ItemRead.model_validate(i).model_dump() for i in items],
+        items=[ItemRead.model_validate(i) for i in items],
         page=page,
         size=size,
         total_count=total,
@@ -125,7 +125,7 @@ async def get_item(
     """
     service = ItemService(session)
     item = await service.get_by_id_or_fail(item_id)
-    return SuccessResponse(data=ItemRead.model_validate(item).model_dump())
+    return SuccessResponse(data=ItemRead.model_validate(item))
 
 
 @router.patch(
@@ -162,7 +162,7 @@ async def update_item(
             item_id, payload.model_dump(exclude_unset=True)
         )
     return SuccessResponse(
-        data=ItemRead.model_validate(item).model_dump(),
+        data=ItemRead.model_validate(item),
         message="Item updated.",
     )
 

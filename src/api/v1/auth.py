@@ -47,8 +47,14 @@ router = APIRouter()
 _AUTH_RESPONSES = {**DEFAULT_RESPONSES, **RESPONSES_UNAUTHORIZED, **RESPONSES_FORBIDDEN}
 
 
-def _user_read(user) -> dict:
-    """Build the outbound ``UserRead`` shape from a ``User`` ORM row."""
+def _user_read(user) -> UserRead:
+    """Build the outbound ``UserRead`` from a ``User`` ORM row.
+
+    Returns the pydantic model directly — ``SuccessResponse`` serialises
+    the envelope through pydantic in one pass via ``model_dump(mode="json")``,
+    so calling ``.model_dump()`` here would just be a redundant round-trip
+    (see ISSUE-028 and ``src/api/CLAUDE.md`` "Common pitfalls").
+    """
     return UserRead(
         id=user.id,
         email=user.email,
@@ -56,7 +62,7 @@ def _user_read(user) -> dict:
         timezone=user.timezone,
         is_active=user.is_active,
         roles=[r.name for r in user.roles or []],
-    ).model_dump()
+    )
 
 
 @router.get(
@@ -95,7 +101,7 @@ async def list_api_keys(
     """Return every active API key owned by the caller (revoked + live)."""
     repo = APIKeyRepository(session)
     rows = await repo.list_for_user(user.id)
-    data = [APIKeyRead.model_validate(r).model_dump() for r in rows]
+    data = [APIKeyRead.model_validate(r) for r in rows]
     return SuccessResponse(data=data)
 
 
@@ -128,7 +134,7 @@ async def create_api_key(
         revoked_at=api_key.revoked_at,
         is_active=api_key.is_active,
         key=raw_key,
-    ).model_dump()
+    )
     return SuccessResponse(
         data=data,
         message="API key created. Store the `key` field now — it cannot be retrieved again.",

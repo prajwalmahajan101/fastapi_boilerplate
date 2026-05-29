@@ -43,6 +43,13 @@ The `hello` and `items` routers are examples — delete them.
 - **Adding a route without `@log_inbound_request(...)`** — every route
   emits one audit row. The handler must declare `request: Request` so
   the decorator can read headers / body.
+- **`.model_dump()` on a return value with `response_model=` declared** —
+  pass the pydantic model (or list of them) to `SuccessResponse` and
+  let the envelope serialise it once. The chain
+  `Schema.model_validate(orm).model_dump()` just round-trips through
+  a dict for no benefit. Caught at CI by
+  `scripts/check_openapi_metadata.py`. Input-side `payload.model_dump(...)`
+  feeding the service layer is fine.
 
 ## Reference examples
 

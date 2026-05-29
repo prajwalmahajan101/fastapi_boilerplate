@@ -113,8 +113,45 @@ def _has_response_model(call: ast.Call) -> bool:
     return any(kw.arg == "response_model" for kw in call.keywords)
 
 
+def _model_dump_round_trips(func: ast.AsyncFunctionDef | ast.FunctionDef) -> list[int]:
+    """Return line numbers where *func* chains ``.model_validate(…).model_dump()``.
+
+    The anti-pattern (ISSUE-028) is calling ``.model_dump()`` on the
+    output of ``.model_validate()`` inside a route that already
+    declares ``response_model=``. ``SuccessResponse`` serialises the
+    envelope through ``model_dump(mode="json")`` in one pass — the
+    explicit dict conversion just round-trips for no benefit.
+
+    Input-side ``payload.model_dump(...)`` (converting a request body
+    to a service-layer kwargs dict) is NOT the anti-pattern — those
+    calls do not follow a ``model_validate`` and are skipped.
+    """
+    hits: list[int] = []
+    for inner in ast.walk(ast.Module(body=list(func.body), type_ignores=[])):
+        if not (
+            isinstance(inner, ast.Call)
+            and isinstance(inner.func, ast.Attribute)
+            and inner.func.attr == "model_dump"
+        ):
+            continue
+        receiver = inner.func.value
+        # Anti-pattern: receiver is `<Schema>.model_validate(...)`.
+        if (
+            isinstance(receiver, ast.Call)
+            and isinstance(receiver.func, ast.Attribute)
+            and receiver.func.attr == "model_validate"
+        ):
+            hits.append(inner.lineno)
+    return hits
+
+
 def _violations(path: Path) -> list[tuple[int, str, str]]:
     """Find route decorators missing required OpenAPI kwargs in *path*.
+
+    Also flags handlers that round-trip their return value through
+    ``.model_dump()`` while declaring ``response_model=`` — that
+    pattern just hands a dict to ``SuccessResponse`` instead of the
+    pydantic model the envelope serialises natively.
 
     Args:
         path: Absolute path to a Python source file under ``src/api/``.
@@ -128,6 +165,9 @@ def _violations(path: Path) -> list[tuple[int, str, str]]:
     for node in ast.walk(tree):
         if not isinstance(node, ast.AsyncFunctionDef | ast.FunctionDef):
             continue
+        decl_lineno = node.lineno
+        deco_repr_for_body = ""
+        has_response_model = False
         for deco in node.decorator_list:
             if not _is_route_decorator(deco):
                 continue
@@ -139,12 +179,22 @@ def _violations(path: Path) -> list[tuple[int, str, str]]:
             if deco.args and isinstance(deco.args[0], ast.Constant):
                 path_arg = str(deco.args[0].value)
             deco_repr = f"{verb} {path_arg}".strip()
+            deco_repr_for_body = deco_repr
+            decl_lineno = deco.lineno
 
             uses = _responses_uses_default(deco)
             if uses is False or uses is None:
                 out.append((deco.lineno, deco_repr, "DEFAULT_RESPONSES"))
-            if not _has_response_model(deco):
+            if _has_response_model(deco):
+                has_response_model = True
+            else:
                 out.append((deco.lineno, deco_repr, "response_model"))
+
+        if has_response_model:
+            for hit_line in _model_dump_round_trips(node):
+                out.append(
+                    (hit_line, deco_repr_for_body or f"line {decl_lineno}", "no-model_dump-round-trip")
+                )
     return out
 
 
@@ -172,7 +222,11 @@ def main() -> int:
             "so the typed success envelope is published in the OpenAPI schema.\n"
             "Health/probe routes that intentionally skip the baseline should "
             "still pass the spread and rely on FastAPI's default override "
-            "behaviour.",
+            "behaviour.\n\n"
+            "Routes that declare response_model= must NOT call .model_dump() "
+            "on their return value — pass the pydantic model (or list of them) "
+            "to SuccessResponse and let the envelope serialise it once. "
+            "(ISSUE-028.)",
             file=sys.stderr,
         )
         return 1
