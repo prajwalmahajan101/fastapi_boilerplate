@@ -22,7 +22,6 @@ Tests that explicitly want to drop the session can still call
 from __future__ import annotations
 
 import asyncio
-import json as _json
 from enum import StrEnum
 from typing import Any, ClassVar
 
@@ -30,6 +29,12 @@ from src.core.api_log.context import outbound_response_meta_ctx
 from src.core.exceptions.api import APIError
 from src.core.exceptions.infrastructure import ExternalTimeoutError, TransientError
 from src.core.exceptions.validation import ValidationError
+from src.core.utils.http_payloads import (
+    serialize_error_body as _serialize_error_body,
+)
+from src.core.utils.http_payloads import (
+    summarise_body_for_audit as _summarise_body_for_audit,
+)
 from src.core.utils.logging import get_logger
 from src.core.utils.ssrf import assert_public_url, safe_host
 
@@ -43,31 +48,6 @@ class AuthType(StrEnum):
     BASIC = "Basic"
     API_KEY = "ApiKey"
     NONE = "None"
-
-
-def _serialize_error_body(body: Any) -> str | None:
-    """Best-effort JSON-encode an upstream error body for ``APIError.response_body``.
-
-    Falls back to ``str(body)`` if the value isn't JSON-serialisable so
-    a malformed partner response never masks the real failure under a
-    secondary ``TypeError``.
-
-    Args:
-        body: Parsed response body (dict, list, str, or anything).
-
-    Returns:
-        JSON string when possible, the original string when ``body`` is
-        already a string, ``str(body)`` as a last resort, or ``None``
-        when no body was captured.
-    """
-    if body is None:
-        return None
-    if isinstance(body, str):
-        return body
-    try:
-        return _json.dumps(body, default=str)
-    except Exception:  # noqa: BLE001
-        return str(body)
 
 
 class AsyncAPIClient:
@@ -330,7 +310,7 @@ class AsyncAPIClient:
                         "params": params,
                         "request_headers": final_headers,
                         "request_body_json": json,
-                        "request_body_data": data,
+                        "request_body_data": _summarise_body_for_audit(data),
                         "status_code": response.status,
                         "response_headers": dict(response.headers),
                         "response_body": response_body,
