@@ -32,3 +32,17 @@ cryptography
 
 # Background tasks — Celery (Redis broker via the redis dep above)
 celery
+
+# Auth — JWT (for the JWT auth provider) and Authlib (Google OAuth client)
+# Both are imported lazily; deployments that disable a provider can pin
+# these to a no-op by removing them from the project's actual requirements
+# file. Kept here so the boilerplate-default `auth_enabled_providers`
+# combinations all work out of the box.
+PyJWT
+authlib
+itsdangerous  # Authlib StarletteOAuth2App needs SessionMiddleware
+
+# Process-local circuit breaker tier — selected by
+# `circuit_breaker_backend="pybreaker"`. Imported lazily so deployments
+# that stay on the redis / memory tiers do not pay the cost.
+pybreaker
