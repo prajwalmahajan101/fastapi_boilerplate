@@ -41,6 +41,34 @@ class BaseThrottle(ABC):
         """
 
     @abstractmethod
+    async def check_fixed_window(
+        self,
+        identifier: str,
+        *,
+        limit: int,
+        window_seconds: int,
+    ) -> ThrottleResult:
+        """Sliding-window-counter decision optimised for high-RPS gates.
+
+        Same ``ThrottleResult`` contract as :meth:`check`, but the
+        Redis-backed implementation uses two fixed-window counters with
+        a weighted-average approximation (three string ops) instead of
+        sorted-set ops. Appropriate for cluster-wide global gates
+        (outbound HTTP concurrency caps, bounded expensive-job queues)
+        where the small precision loss at window boundaries is
+        acceptable.
+
+        Args:
+            identifier: Throttle bucket key (already namespaced by scope).
+            limit: Maximum allowed requests in the window.
+            window_seconds: Rolling window duration in seconds.
+
+        Returns:
+            ``ThrottleResult`` carrying allow/deny + remaining quota +
+            retry-after.
+        """
+
+    @abstractmethod
     async def is_healthy(self) -> bool:
         """Probe the backend; clear any sticky fallback flag on recovery.
 

@@ -67,6 +67,35 @@ class InMemoryThrottle(BaseThrottle):
                 retry_after=0.0,
             )
 
+    async def check_fixed_window(
+        self,
+        identifier: str,
+        *,
+        limit: int,
+        window_seconds: int,
+    ) -> ThrottleResult:
+        """In-memory fallback for the fixed-window counter.
+
+        Delegates to :meth:`check` so the in-memory fallback gives the
+        same allow/deny answer the sliding-window path would; the only
+        observable difference vs the Redis fast path is precision at
+        window boundaries (the Redis implementation interpolates two
+        adjacent buckets; this path uses the same sliding-window deque
+        as :meth:`check`). Acceptable for fallback semantics.
+
+        Args:
+            identifier: Throttle bucket key (already namespaced by scope).
+            limit: Maximum allowed requests in the window.
+            window_seconds: Rolling window duration in seconds.
+
+        Returns:
+            ``ThrottleResult`` carrying allow/deny + remaining quota +
+            retry-after.
+        """
+        return await self.check(
+            identifier, limit=limit, window_seconds=window_seconds
+        )
+
     async def is_healthy(self) -> bool:
         """In-process backends have no remote dependency to probe.
 

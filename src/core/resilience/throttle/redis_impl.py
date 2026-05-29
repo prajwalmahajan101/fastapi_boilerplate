@@ -32,6 +32,7 @@ from typing import Any
 
 from src.core.resilience.health import BackendHealth
 from src.core.resilience.throttle.base import BaseThrottle, ThrottleResult
+from src.core.resilience.throttle.lua_scripts import THROTTLE_LUA_SCRIPT
 from src.core.resilience.throttle.memory_impl import InMemoryThrottle
 
 logger = logging.getLogger(__name__)
@@ -41,30 +42,6 @@ logger = logging.getLogger(__name__)
 # (two workers may PING once each before they observe the cleared flag,
 # every subsequent worker reuses the cleared flag).
 _RECOVERY_PROBE_INTERVAL_S = 30.0
-
-THROTTLE_LUA_SCRIPT = """
-local key = KEYS[1]
-local limit = tonumber(ARGV[1])
-local window = tonumber(ARGV[2])
-local now = tonumber(ARGV[3])
-
-local cutoff = now - window
-
-redis.call('ZREMRANGEBYSCORE', key, 0, cutoff)
-local count = redis.call('ZCARD', key)
-
-if count >= limit then
-    local ttl = redis.call('TTL', key)
-    if ttl < 0 then ttl = window end
-    return {0, count, ttl}
-end
-
-redis.call('ZADD', key, now, tostring(now) .. ':' .. tostring(math.random(1000000)))
-redis.call('EXPIRE', key, window)
-
-return {1, count + 1, window}
-"""
-
 
 class RedisThrottle(BaseThrottle):
     """Distributed sliding-window throttle via a single Lua call per check."""
@@ -219,6 +196,90 @@ class RedisThrottle(BaseThrottle):
         except Exception as exc:  # noqa: BLE001
             await self._flip_fallback(exc)
             return await self._fallback.check(
+                identifier, limit=limit, window_seconds=window_seconds
+            )
+
+        allowed = bool(int(result[0]))
+        count = int(result[1])
+        ttl = float(result[2])
+        return ThrottleResult(
+            allowed=allowed,
+            limit=limit,
+            remaining=max(0, limit - count),
+            reset_at=int(now + ttl),
+            retry_after=ttl if not allowed else 0.0,
+        )
+
+    async def check_fixed_window(
+        self,
+        identifier: str,
+        *,
+        limit: int,
+        window_seconds: int,
+    ) -> ThrottleResult:
+        """Sliding-window-counter check via the dedicated O(1) Lua script.
+
+        Three string ops (``GET`` current bucket + ``GET`` previous +
+        ``INCR``) instead of the sorted-set triplet that
+        :meth:`check` performs. The cost-per-call drop is the reason
+        callers reach for this over a per-identifier sliding window
+        on high-RPS global gates.
+
+        Args:
+            identifier: Throttle bucket key (already namespaced by scope).
+                Becomes the Lua script's ``key_prefix``; the script
+                appends ``:<window_start>`` to form the per-window keys.
+            limit: Maximum allowed events in ``window_seconds``.
+            window_seconds: Rolling window duration in seconds.
+
+        Returns:
+            ``ThrottleResult`` with allow/deny + remaining quota +
+            retry-after.
+        """
+        from src.core.resilience.throttle.global_lua import load_sha, reset_sha
+
+        if self._health is BackendHealth.DEGRADED:
+            now_probe = time.time()
+            if (now_probe - self._last_probe_at) < _RECOVERY_PROBE_INTERVAL_S:
+                return await self._fallback.check_fixed_window(
+                    identifier, limit=limit, window_seconds=window_seconds
+                )
+            self._last_probe_at = now_probe
+            try:
+                await self._redis.ping()
+            except Exception:  # noqa: BLE001
+                return await self._fallback.check_fixed_window(
+                    identifier, limit=limit, window_seconds=window_seconds
+                )
+            async with self._lock:
+                if self._health is BackendHealth.DEGRADED:
+                    self._health = BackendHealth.ACTIVE
+                    logger.info(
+                        "Redis throttle recovered (in-call probe, fixed-window); "
+                        "leaving fallback mode."
+                    )
+
+        key_prefix = f"{self._key_prefix}:global:{identifier}"
+        now = time.time()
+        try:
+            from redis.exceptions import NoScriptError
+
+            sha = await load_sha(self._redis)
+            try:
+                result = await self._redis.evalsha(
+                    sha, 1, key_prefix, str(limit), str(window_seconds), str(now)
+                )
+            except NoScriptError:
+                # Redis ``SCRIPT FLUSH`` (or a failover that lost the
+                # cache) — drop our cache and re-load once.
+                await reset_sha()
+                sha = await load_sha(self._redis)
+                result = await self._redis.evalsha(
+                    sha, 1, key_prefix, str(limit), str(window_seconds), str(now)
+                )
+        except Exception as exc:  # noqa: BLE001
+            await self._flip_fallback(exc)
+            return await self._fallback.check_fixed_window(
                 identifier, limit=limit, window_seconds=window_seconds
             )
 

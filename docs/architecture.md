@@ -136,6 +136,26 @@ Concrete consumers (cache primers, session-token re-primers) register
 warm-up hooks via `register_warm_hook(fn)`; they fan out after **any**
 backend successfully re-attaches.
 
+### Global vs per-identifier throttle scope
+
+The default `rate_limit(scope, rate)` dependency uses a per-identifier
+sliding window backed by a sorted-set Lua script (one
+`ZREMRANGEBYSCORE` + one `ZCARD` + one `ZADD` per request). The
+precision is exact: a burst at the edge of two fixed windows cannot
+pass. This is the right tool for per-(user|endpoint|IP|tier) buckets.
+
+For high-RPS *global* gates — cluster-wide outbound-call concurrency
+caps, bounded expensive-job queues — the sorted-set cost adds up. A
+second dependency, `fixed_window_rate_limit(scope, rate)`, routes the
+decision through an O(1) sliding-window-counter Lua script
+(one `GET` per neighbouring fixed-window key + one `INCR` + one
+`EXPIRE`). The script lives in
+`src.core.resilience.throttle.lua_scripts.GLOBAL_THROTTLE_LUA_SCRIPT`;
+its SHA is cached process-wide via
+`src.core.resilience.throttle.global_lua`. The small precision loss
+at window boundaries is the price you pay for the cheaper round-trip.
+Both APIs return the same `ThrottleResult`.
+
 ## Background tasks (Celery)
 
 `src.core.tasks` wires Celery as the durable / retried / scheduled
