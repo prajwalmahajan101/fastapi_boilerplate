@@ -77,3 +77,4 @@ is `_is_superuser` in `src/api/health.py`; the masking lives in
 | Rate-limit denials | `X-RateLimit-*` headers in client logs; throttle scope stats |
 | Slow request | `MetricsMiddleware` duration + audit-log `duration_ms` |
 | Missing log entry | Check sanitizer caps; large payloads are truncated |
+| `auth_blacklist_unreachable_*` spike | JWT blacklist cache degraded — see [`authentication.md`](authentication.md#blacklist-fail-policy). Refresh-side spikes also surface as 401s on `/auth/token/refresh`. |

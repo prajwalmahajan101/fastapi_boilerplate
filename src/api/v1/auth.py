@@ -207,7 +207,8 @@ async def refresh_token(
     """
     from src.auth.jwt import (  # noqa: PLC0415
         _REFRESH_TOKEN_TYPE,
-        _is_blacklisted,
+        BlacklistOutcome,
+        _check_blacklist,
         _load_active_user,
         blacklist_jti,
         decode_token,
@@ -220,8 +221,16 @@ async def refresh_token(
 
     claims = decode_token(payload.refresh_token, expected_type=_REFRESH_TOKEN_TYPE)
     jti = claims.get("jti")
-    if jti and await _is_blacklisted(jti):
-        raise TokenRevokedError()
+    if jti:
+        # Refresh path fails *closed* on cache outage: a long-lived
+        # refresh token replayed during a Redis blip would otherwise
+        # mint a fresh access+refresh pair, defeating logout. The
+        # blacklist lookup's WARNING + metric tells operators why.
+        outcome = await _check_blacklist(
+            jti, sub=claims.get("sub"), token_type=_REFRESH_TOKEN_TYPE
+        )
+        if outcome is not BlacklistOutcome.NOT_LISTED:
+            raise TokenRevokedError()
 
     user = await _load_active_user(session, claims["sub"])
     if user is None:

@@ -125,6 +125,20 @@ most-specific check first.
   survive worker restarts; the in-memory fallback degrades the
   guarantee to per-worker only.
 
+### Blacklist fail policy
+
+When the blacklist cache is unreachable, the lookup is asymmetric so
+the failure mode matches the actual risk of each path:
+
+| Token | Behaviour on cache outage | Rationale |
+|---|---|---|
+| Access  | **Fail open** — request continues. WARNING logged with `jti` / `sub` / `request_id` / `token_type=access`; `auth_blacklist_unreachable_access` counter incremented. | Access tokens are short-lived (`jwt_access_ttl_seconds`); a brief blip can't replay a revoked token meaningfully. Availability over correctness. |
+| Refresh | **Fail closed** — `TokenRevokedError`. Same WARNING + `auth_blacklist_unreachable_refresh` counter. | Refresh tokens are long-lived; replaying a revoked one during a Redis blip mints a fresh access+refresh pair and defeats logout. Correctness over availability. |
+
+Alert on `auth_blacklist_unreachable_*` spikes — they're the leading
+indicator of a degraded blacklist and a refresh-side outage will
+surface as a 401 spike on `/auth/token/refresh`.
+
 ## Exception family
 
 | Exception | HTTP | error_code |

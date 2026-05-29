@@ -20,6 +20,7 @@ in deployments that never enable the ``"jwt"`` provider.
 
 from __future__ import annotations
 
+import enum
 import logging
 import secrets as _secrets
 from datetime import datetime, timedelta, timezone
@@ -29,12 +30,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.base import AuthResult
+from src.core.context import get_request_id
 from src.core.exceptions.auth import (
     AuthenticationFailedError,
     TokenExpiredError,
     TokenInvalidError,
     TokenRevokedError,
 )
+from src.core.metrics import record_counter
 from src.core.runtime import get_settings
 
 if TYPE_CHECKING:
@@ -201,20 +204,80 @@ def decode_token(token: str, *, expected_type: str | None = None) -> dict[str, A
     return payload
 
 
-async def _is_blacklisted(jti: str) -> bool:
-    """Return ``True`` when ``jti`` has been logged out."""
+class BlacklistOutcome(enum.Enum):
+    """Three-state result of a blacklist lookup.
+
+    ``LISTED`` and ``NOT_LISTED`` mean the cache responded. ``UNAVAILABLE``
+    means the cache backend errored — callers decide whether to fail
+    open (access path, short-lived) or fail closed (refresh path,
+    long-lived).
+    """
+
+    LISTED = "listed"
+    NOT_LISTED = "not_listed"
+    UNAVAILABLE = "unavailable"
+
+
+async def _check_blacklist(
+    jti: str, *, sub: str | None = None, token_type: str = _ACCESS_TOKEN_TYPE
+) -> BlacklistOutcome:
+    """Look up ``jti`` in the blacklist cache; return the three-state outcome.
+
+    On a cache backend error this logs a WARNING with ``jti`` / ``sub``
+    / ``request_id`` / ``token_type`` and bumps the
+    ``auth_blacklist_unreachable`` counter so operators see Redis blips
+    without having to grep. The hybrid fail policy itself (open for
+    access, closed for refresh) is implemented by the callers — this
+    function just reports.
+
+    Args:
+        jti: The token's ``jti`` claim.
+        sub: The token's ``sub`` claim (user id) — included in the
+            outage WARNING for incident triage.
+        token_type: ``"access"`` or ``"refresh"`` — labels the metric
+            so spikes on the refresh path stand out.
+
+    Returns:
+        :class:`BlacklistOutcome` — ``LISTED``, ``NOT_LISTED``, or
+        ``UNAVAILABLE``.
+    """
     from src.core.resilience.cache.provider import get_cache  # noqa: PLC0415
 
     alias = get_settings().jwt_blacklist_cache_alias
     try:
         cache = await get_cache(alias)
-        return await cache.get(_BLACKLIST_PREFIX + jti) is not None
+        hit = await cache.get(_BLACKLIST_PREFIX + jti)
     except Exception as exc:  # noqa: BLE001
-        # Fail-closed would lock everyone out on a cache outage; the
-        # threat model here is post-logout reuse of a still-unexpired
-        # token, which the access-token TTL caps anyway. Log + allow.
-        logger.warning("JWT blacklist lookup failed (%s) — allowing token.", exc)
-        return False
+        logger.warning(
+            "JWT blacklist lookup unavailable (%s).",
+            exc,
+            extra={
+                "event": "auth_blacklist_unreachable",
+                "jti": jti,
+                "sub": sub,
+                "token_type": token_type,
+                "request_id": get_request_id(),
+            },
+        )
+        # ``token_type`` lives in the event name (not a metric label) to
+        # respect the bounded-cardinality contract on ``record_counter``.
+        record_counter(
+            f"auth_blacklist_unreachable_{token_type}", status="error"
+        )
+        return BlacklistOutcome.UNAVAILABLE
+    return BlacklistOutcome.LISTED if hit is not None else BlacklistOutcome.NOT_LISTED
+
+
+async def _is_blacklisted(jti: str) -> bool:
+    """Back-compat shim: ``True`` when the cache says ``jti`` is revoked.
+
+    Treats ``UNAVAILABLE`` as not blacklisted (fail-open) for the
+    access-token path. Refresh-token call sites must use
+    :func:`_check_blacklist` directly so they can fail closed on
+    ``UNAVAILABLE``.
+    """
+    outcome = await _check_blacklist(jti, token_type=_ACCESS_TOKEN_TYPE)
+    return outcome is BlacklistOutcome.LISTED
 
 
 async def blacklist_jti(jti: str, *, ttl_seconds: int | None = None) -> None:
@@ -272,8 +335,16 @@ class JWTProvider:
 
         payload = decode_token(token, expected_type=_ACCESS_TOKEN_TYPE)
         jti = payload.get("jti")
-        if jti and await _is_blacklisted(jti):
-            raise TokenRevokedError()
+        if jti:
+            # Access path: short-lived. UNAVAILABLE falls through to
+            # allow so a Redis blip does not lock every authed call out;
+            # the metric + WARNING emitted by _check_blacklist make the
+            # blip visible to operators.
+            outcome = await _check_blacklist(
+                jti, sub=payload.get("sub"), token_type=_ACCESS_TOKEN_TYPE
+            )
+            if outcome is BlacklistOutcome.LISTED:
+                raise TokenRevokedError()
 
         user = await _load_active_user(session, payload["sub"])
         if user is None:
