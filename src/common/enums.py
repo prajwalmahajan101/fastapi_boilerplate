@@ -33,8 +33,34 @@ class Environment(StrEnum):
     PRODUCTION = "production"
 
 
+class Resource(StrEnum):
+    """RBAC resource families guarded by ``RequireResource``.
+
+    Extend per-domain; the registry in ``src.core.rbac.registry``
+    looks up ``(resource, action)`` pairs against the authenticated
+    user's role permissions. Stored as plain strings in the DB so
+    adding a value here does not require a column-type migration.
+    """
+
+    ACCOUNT = "account"
+    ROLE = "role"
+    API_KEY = "api_key"
+    ITEM = "item"
+
+
+class Action(StrEnum):
+    """RBAC actions guarded by ``RequireResource``."""
+
+    CREATE = "create"
+    READ = "read"
+    UPDATE = "update"
+    DELETE = "delete"
+
+
 __all__ = [
+    "Action",
     "AuthType",
     "Environment",
     "RequestDirection",
+    "Resource",
 ]

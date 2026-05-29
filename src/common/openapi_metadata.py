@@ -123,6 +123,28 @@ RESPONSES_VALIDATION: dict[int | str, dict[str, Any]] = {
     },
 }
 
+RESPONSES_UNAUTHORIZED: dict[int | str, dict[str, Any]] = {
+    401: {
+        "model": ErrorEnvelope,
+        "description": (
+            "Missing or invalid API key. `errors[0].code` is "
+            "`AUTHENTICATION_FAILED` (or `API_KEY_REVOKED` for a "
+            "soft-revoked key)."
+        ),
+    },
+}
+
+RESPONSES_FORBIDDEN: dict[int | str, dict[str, Any]] = {
+    403: {
+        "model": ErrorEnvelope,
+        "description": (
+            "Authenticated principal does not hold the required "
+            "`(resource, action)` permission. `errors[0].code` is "
+            "`PERMISSION_DENIED`."
+        ),
+    },
+}
+
 RESPONSES_RATE_LIMITED: dict[int | str, dict[str, Any]] = {
     429: {
         "model": ErrorEnvelope,
@@ -185,10 +207,12 @@ __all__ = [
     "DEFAULT_RESPONSES",
     "RESPONSES_BAD_GATEWAY",
     "RESPONSES_BAD_REQUEST",
+    "RESPONSES_FORBIDDEN",
     "RESPONSES_INTERNAL_SERVER_ERROR",
     "RESPONSES_NOT_FOUND",
     "RESPONSES_RATE_LIMITED",
     "RESPONSES_SERVICE_UNAVAILABLE",
+    "RESPONSES_UNAUTHORIZED",
     "RESPONSES_VALIDATION",
     "TAGS_METADATA",
 ]

@@ -74,6 +74,74 @@ Every domain table inherits from `BaseModel` (or `NamedBaseModel`) and gets:
 (separate from `BaseModel.metadata`) — both are combined in
 `alembic/env.py`'s `target_metadata`.
 
+## Auth tables (added by `0002_auth_tables`)
+
+```mermaid
+erDiagram
+    users {
+        bigint    id PK
+        string    email UK
+        string    first_name
+        string    last_name
+        string    timezone
+        string    last_login_ip
+        bool      is_active
+        jsonb     notes
+        timestamp created_at
+        timestamp updated_at
+    }
+    roles {
+        bigint    id PK
+        string    name UK
+        string    description
+        bool      is_superuser_role
+        bool      is_default
+        bool      is_active
+        timestamp created_at
+        timestamp updated_at
+    }
+    permissions {
+        bigint    id PK
+        string    resource "Resource enum"
+        string    action   "Action enum"
+        bool      is_active
+        timestamp created_at
+        timestamp updated_at
+    }
+    api_keys {
+        bigint    id PK
+        bigint    user_id FK
+        string    name
+        string    prefix       "first 8 chars; partial unique on (prefix) WHERE is_active AND revoked_at IS NULL"
+        string    secret       "Fernet-encrypted at rest"
+        timestamp last_used_at
+        timestamp revoked_at   "soft revocation; non-null disables the key"
+        bool      is_active
+        timestamp created_at
+        timestamp updated_at
+    }
+    user_roles {
+        bigint user_id PK,FK
+        bigint role_id PK,FK
+    }
+    role_permissions {
+        bigint role_id       PK,FK
+        bigint permission_id PK,FK
+    }
+
+    users           ||--o{ user_roles       : "owns"
+    roles           ||--o{ user_roles       : "granted to"
+    roles           ||--o{ role_permissions : "bundles"
+    permissions     ||--o{ role_permissions : "in role"
+    users           ||--o{ api_keys         : "issues"
+```
+
+The auth flow: ``X-API-Key`` → ``api_keys`` lookup by ``prefix``
+(partial unique index → no heap fetch) → constant-time secret
+compare → ``users`` row → ``user.roles`` → ``role.permissions``. The
+``RequireResource(resource, action)`` FastAPI dependency in
+``src.core.rbac`` is the single enforcement point.
+
 ## Workflow
 
 After any column/constraint change:

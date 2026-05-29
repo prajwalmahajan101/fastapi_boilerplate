@@ -6,6 +6,6 @@ table before issuing ``metadata.create_all``. Add new models to
 ``__init__`` re-exports.
 """
 
-from src.model import Item
+from src.model import APIKey, Item, Permission, Role, User
 
-__all__ = ["Item"]
+__all__ = ["APIKey", "Item", "Permission", "Role", "User"]

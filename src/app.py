@@ -27,6 +27,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from src.api.router import root_router
+import src.auth  # noqa: F401 — import-time side-effect wires RBAC's current-user hook
 from src.common.openapi_metadata import API_DESCRIPTION, TAGS_METADATA
 from src.common.settings import settings
 from src.core.api_log import close_repository, init_repository

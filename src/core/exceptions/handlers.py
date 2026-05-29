@@ -23,6 +23,11 @@ from fastapi.responses import JSONResponse
 
 from src.core.base.exception import BaseCustomError
 from src.core.context import get_request_id
+from src.core.exceptions.auth import (
+    APIKeyRevokedError,
+    AuthenticationFailedError,
+    PermissionDeniedError,
+)
 from src.core.exceptions.infrastructure import (
     DecryptionError,
     ExternalServiceError,
@@ -184,6 +189,14 @@ register_exception_mapping(
 )  # parent — register last
 register_exception_mapping(DecryptionError, status.HTTP_500_INTERNAL_SERVER_ERROR)
 register_exception_mapping(RateLimitError, status.HTTP_429_TOO_MANY_REQUESTS)
+# Auth — register the revoked subclass before its parent so a revoked
+# key returns ``API_KEY_REVOKED`` (not the parent's generic code) even
+# though both resolve to 401.
+register_exception_mapping(APIKeyRevokedError, status.HTTP_401_UNAUTHORIZED)
+register_exception_mapping(
+    AuthenticationFailedError, status.HTTP_401_UNAUTHORIZED
+)
+register_exception_mapping(PermissionDeniedError, status.HTTP_403_FORBIDDEN)
 # Defensive parent fallbacks — registered last so they only catch
 # subclasses added later without their own explicit mapping. Both
 # resolve to 500 (matching the class attr); the value of registering

@@ -5,6 +5,7 @@ Add each new model here; ``src.db.tables`` imports from this package so
 emergency ``init_db`` DDL bootstrap.
 """
 
+from src.model.auth import APIKey, Permission, Role, User
 from src.model.item import Item
 
-__all__ = ["Item"]
+__all__ = ["APIKey", "Item", "Permission", "Role", "User"]
