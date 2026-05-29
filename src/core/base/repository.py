@@ -95,7 +95,7 @@ class BaseRepository(Generic[ModelT]):
         limit: int | None = None,
         offset: int | None = None,
         options: Sequence[Any] | None = None,
-        active_only: bool = False,
+        active_only: bool = True,
     ) -> Sequence[ModelT]:
         """List rows with optional filters, ordering, pagination, and loaders.
 
@@ -105,7 +105,10 @@ class BaseRepository(Generic[ModelT]):
             limit: Max number of rows.
             offset: Number of rows to skip.
             options: SQLAlchemy loader options.
-            active_only: Restrict to ``is_active=True``.
+            active_only: Restrict to ``is_active=True``. Defaults to
+                ``True`` so callers don't silently leak soft-deleted
+                rows; pass ``False`` explicitly to include tombstones
+                (admin / reporting paths).
 
         Returns:
             Sequence of matching model instances.
@@ -133,7 +136,7 @@ class BaseRepository(Generic[ModelT]):
         filters: dict[str, Any] | None = None,
         order_by: Sequence[Any] | None = None,
         options: Sequence[Any] | None = None,
-        active_only: bool = False,
+        active_only: bool = True,
     ) -> tuple[Sequence[ModelT], int]:
         """Return ``(items, total_count)`` for the requested page slice.
 
@@ -149,6 +152,9 @@ class BaseRepository(Generic[ModelT]):
             order_by: SQLAlchemy order clauses for the slice query.
             options: SQLAlchemy loader options.
             active_only: Restrict to ``is_active=True`` on both queries.
+                Defaults to ``True`` so paginated list endpoints don't
+                silently leak soft-deleted rows; pass ``False`` to
+                include tombstones.
 
         Returns:
             Tuple ``(items, total_count)`` — ``items`` is the slice for
@@ -194,14 +200,17 @@ class BaseRepository(Generic[ModelT]):
         self,
         filters: dict[str, Any] | None = None,
         *,
-        active_only: bool = False,
+        active_only: bool = True,
     ) -> int:
         """Count rows matching ``filters``.
 
         Args:
             filters: Optional equality filters.
             active_only: Restrict to ``is_active=True`` so the count
-                matches a corresponding ``list(active_only=True)`` call.
+                matches the default ``list(active_only=True)`` call.
+                Defaults to ``True`` for symmetry with ``list`` /
+                ``list_paginated``; pass ``False`` to include
+                soft-deleted rows.
 
         Returns:
             Number of matching rows.

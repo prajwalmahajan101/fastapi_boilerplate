@@ -88,7 +88,7 @@ async def list_items(
         Paginated success envelope of :class:`ItemRead` rows.
     """
     service = ItemService(session)
-    items, total = await service.list_paginated(page=page, size=size, active_only=True)
+    items, total = await service.list_paginated(page=page, size=size)
     return PaginatedResponse(
         items=[ItemRead.model_validate(i).model_dump() for i in items],
         page=page,

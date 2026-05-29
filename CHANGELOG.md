@@ -15,5 +15,13 @@ this project does not yet publish releases, so changes are grouped under
   the concrete `data` shape instead of a free-form object.
 - `scripts/check_openapi_metadata.py` now also flags routes missing
   `response_model=`, keeping the contract enforced at CI time. (ISSUE-017)
+
+### Changed
+
+- **Breaking (internal):** `BaseRepository.list` / `list_paginated` / `count`
+  and `BaseService.list` / `list_paginated` now default `active_only=True`.
+  Soft-deleted rows are no longer returned unless callers opt in via
+  `active_only=False`. The example `list_items` route drops its now-redundant
+  explicit flag. (ISSUE-018)
 </content>
 </invoke>

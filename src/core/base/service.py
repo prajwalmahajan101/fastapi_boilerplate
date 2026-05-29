@@ -228,7 +228,7 @@ class BaseService(ABC, Generic[ModelT]):
         limit: int | None = None,
         offset: int | None = None,
         options: Sequence[Any] | None = None,
-        active_only: bool = False,
+        active_only: bool = True,
     ) -> Sequence[ModelT]:
         """List rows after validating any filter keys against the whitelist.
 
@@ -238,7 +238,9 @@ class BaseService(ABC, Generic[ModelT]):
             limit: Max rows.
             offset: Rows to skip.
             options: Loader options.
-            active_only: Restrict to ``is_active=True``.
+            active_only: Restrict to ``is_active=True``. Defaults to
+                ``True``; pass ``False`` explicitly to include
+                soft-deleted rows.
 
         Returns:
             Matching model instances.
@@ -262,7 +264,7 @@ class BaseService(ABC, Generic[ModelT]):
         filters: dict[str, Any] | None = None,
         order_by: Sequence[Any] | None = None,
         options: Sequence[Any] | None = None,
-        active_only: bool = False,
+        active_only: bool = True,
     ) -> tuple[Sequence[ModelT], int]:
         """Paginated ``list`` with the same filter-whitelist contract.
 
@@ -273,7 +275,9 @@ class BaseService(ABC, Generic[ModelT]):
                 ``allowed_filter_fields`` when set).
             order_by: SQLAlchemy order clauses.
             options: Loader options.
-            active_only: Restrict to ``is_active=True``.
+            active_only: Restrict to ``is_active=True``. Defaults to
+                ``True``; pass ``False`` explicitly to include
+                soft-deleted rows.
 
         Returns:
             Tuple ``(items, total_count)`` — same contract as
