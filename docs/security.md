@@ -62,11 +62,12 @@ Two layers gate every outbound HTTP call made through `AsyncAPIClient`:
 1. **SSRF guard with DNS pinning.** `resolve_and_validate(url)` rejects
    non-`http`/`https` schemes and any URL that resolves to a non-public
    address (RFC1918, loopback, link-local, multicast, reserved). It
-   returns the resolved IP set; `AsyncAPIClient.request` then pins that
-   set on a `ContextVar` and a custom aiohttp resolver returns *only*
-   those IPs at dispatch time. Without the pin, a malicious zone could
-   return a public IP at validation and a private one at the actual
-   request (classic DNS-rebinding TOCTOU).
+   returns the resolved IP set; `AsyncAPIClient.request` *and*
+   `AsyncAPIClient.download_bytes` then pin that set on a `ContextVar`
+   and a custom aiohttp resolver returns *only* those IPs at dispatch
+   time. Without the pin, a malicious zone could return a public IP
+   at validation and a private one at the actual request (classic
+   DNS-rebinding TOCTOU).
 
 2. **Outbound URL allow-list.** `outbound_url_allowlist` is a positive
    list of hosts the service is allowed to call:

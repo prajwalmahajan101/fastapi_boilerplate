@@ -418,45 +418,62 @@ class AsyncAPIClient:
                 error occurred.
         """
         import aiohttp
+        from urllib.parse import urlparse
 
+        pin_token = None
         if check_ssrf:
-            assert_public_url(url)
+            resolved_ips = resolve_and_validate(url)
+            assert_allowed_url(url)
+            if resolved_ips:
+                # Pin the IP set the validator approved so the custom
+                # aiohttp resolver returns the same answers at dispatch
+                # time — same DNS-rebinding TOCTOU closure as ``_request``.
+                host = (urlparse(url).hostname or "").lower()
+                pin_token = pinned_dns.set({host: resolved_ips})
+        else:
+            assert_allowed_url(url)
 
         timeout_cfg = aiohttp.ClientTimeout(total=timeout)
-        with map_aiohttp_errors(
-            url=url,
-            method="GET",
-            timeout=timeout,
-            operation="Download",
-        ):
-            session = await SessionManager.get_session()
-            async with session.get(url, timeout=timeout_cfg) as response:
-                raise_for_server_error(url, response.status)
-                if response.status >= 400:
-                    response.raise_for_status()
+        try:
+            with map_aiohttp_errors(
+                url=url,
+                method="GET",
+                timeout=timeout,
+                operation="Download",
+            ):
+                session = await SessionManager.get_session()
+                async with session.get(url, timeout=timeout_cfg) as response:
+                    raise_for_server_error(url, response.status)
+                    if response.status >= 400:
+                        response.raise_for_status()
 
-                declared = response.content_length
-                if declared is not None and declared > max_size:
-                    raise APIError(
-                        f"Download from {url} exceeds max_size "
-                        f"({declared} > {max_size} bytes)",
-                        status_code=response.status,
-                    )
-
-                buffer = bytearray()
-                async for chunk in response.content.iter_chunked(65536):
-                    buffer.extend(chunk)
-                    if len(buffer) > max_size:
+                    declared = response.content_length
+                    if declared is not None and declared > max_size:
                         raise APIError(
                             f"Download from {url} exceeds max_size "
-                            f"({max_size} bytes)",
+                            f"({declared} > {max_size} bytes)",
                             status_code=response.status,
                         )
-                content_type = response.headers.get(
-                    "Content-Type", "application/octet-stream"
-                )
-                return bytes(buffer), content_type
-        raise RuntimeError("unreachable: map_aiohttp_errors must raise or return")
+
+                    buffer = bytearray()
+                    async for chunk in response.content.iter_chunked(65536):
+                        buffer.extend(chunk)
+                        if len(buffer) > max_size:
+                            raise APIError(
+                                f"Download from {url} exceeds max_size "
+                                f"({max_size} bytes)",
+                                status_code=response.status,
+                            )
+                    content_type = response.headers.get(
+                        "Content-Type", "application/octet-stream"
+                    )
+                    return bytes(buffer), content_type
+            raise RuntimeError(
+                "unreachable: map_aiohttp_errors must raise or return"
+            )
+        finally:
+            if pin_token is not None:
+                pinned_dns.reset(pin_token)
 
 
 __all__ = ["AsyncAPIClient"]

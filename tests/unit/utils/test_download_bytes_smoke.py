@@ -1,19 +1,27 @@
-"""Smoke test for ``AsyncAPIClient.download_bytes`` — guards ISSUE-022.
+"""Smoke + SSRF-parity tests for ``AsyncAPIClient.download_bytes``.
 
-The bug: ``download_bytes`` called ``assert_public_url`` without
-importing it, so every invocation with the default ``check_ssrf=True``
-raised ``NameError`` at runtime. This test exercises the call path
-with a stubbed aiohttp session and asserts the SSRF guard runs
-without exploding.
+Guards two issues at once:
+
+* ISSUE-022 — ``download_bytes`` raised NameError on the default
+  ``check_ssrf=True`` path because ``assert_public_url`` was never
+  imported.
+* ISSUE-023 — the same path skipped ``resolve_and_validate`` +
+  ``pinned_dns``, leaving the DNS-rebinding TOCTOU that commit
+  ``20a4150`` closed for ``_request`` wide open in the download path.
+
+The tests stub the aiohttp session, drive ``download_bytes`` end-to-
+end, and assert that ``pinned_dns`` is set during dispatch then reset
+on exit (both happy and failure paths).
 """
 
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from src.core.utils import ssrf
 from src.core.utils.http_client._client import AsyncAPIClient
 
 
@@ -42,25 +50,110 @@ class _StubContent:
         yield b"hello-world"
 
 
-@pytest.mark.asyncio
-async def test_download_bytes_with_ssrf_guard_does_not_raise_nameerror(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """``check_ssrf=True`` (the default) used to raise NameError; now it returns bytes."""
+def _stub_session(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    """Patch ``SessionManager.get_session`` to return a stub aiohttp session."""
     session = MagicMock()
     session.get = MagicMock(return_value=_StubResponse())
     monkeypatch.setattr(
         "src.core.utils.http_client._client.SessionManager.get_session",
         AsyncMock(return_value=session),
     )
+    return session
 
-    with patch(
-        "src.core.utils.http_client._client.assert_public_url"
-    ) as guard:
-        body, ctype = await AsyncAPIClient.download_bytes(
+
+@pytest.fixture(autouse=True)
+def _reset_pin():
+    """Each test starts with an empty pin contextvar."""
+    token = ssrf.pinned_dns.set(None)
+    yield
+    ssrf.pinned_dns.reset(token)
+
+
+@pytest.mark.asyncio
+async def test_download_bytes_pins_dns_then_resets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The SSRF guard resolves, pins, fetches, and unwinds the pin on exit."""
+    session = _stub_session(monkeypatch)
+
+    captured: dict[str, Any] = {}
+
+    def _resolve(url: str) -> set[str]:
+        captured["resolved_url"] = url
+        return {"203.0.113.7"}
+
+    monkeypatch.setattr(
+        "src.core.utils.http_client._client.resolve_and_validate", _resolve
+    )
+    monkeypatch.setattr(
+        "src.core.utils.http_client._client.assert_allowed_url",
+        lambda _u: captured.setdefault("allow_called", True),
+    )
+
+    # Confirm the pin is set during the fetch.
+    def _during_fetch(*_a: Any, **_kw: Any) -> _StubResponse:
+        captured["pin_during_fetch"] = ssrf.pinned_dns.get()
+        return _StubResponse()
+
+    session.get.side_effect = _during_fetch
+
+    body, ctype = await AsyncAPIClient.download_bytes(
+        "https://example.com/x", max_size=1024
+    )
+
+    assert body == b"hello-world"
+    assert ctype == "application/octet-stream"
+    assert captured["resolved_url"] == "https://example.com/x"
+    assert captured["allow_called"] is True
+    assert captured["pin_during_fetch"] == {"example.com": {"203.0.113.7"}}
+    # After exit the contextvar is back to its starting state.
+    assert ssrf.pinned_dns.get() is None
+
+
+@pytest.mark.asyncio
+async def test_download_bytes_resets_pin_on_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An exception during fetch must still unwind the pin (try/finally)."""
+    session = _stub_session(monkeypatch)
+    session.get.side_effect = RuntimeError("boom")
+
+    monkeypatch.setattr(
+        "src.core.utils.http_client._client.resolve_and_validate",
+        lambda _u: {"203.0.113.8"},
+    )
+    monkeypatch.setattr(
+        "src.core.utils.http_client._client.assert_allowed_url", lambda _u: None
+    )
+
+    with pytest.raises(RuntimeError):
+        await AsyncAPIClient.download_bytes(
             "https://example.com/x", max_size=1024
         )
 
-    guard.assert_called_once_with("https://example.com/x")
+    assert ssrf.pinned_dns.get() is None
+
+
+@pytest.mark.asyncio
+async def test_download_bytes_skips_ssrf_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``check_ssrf=False`` still runs the allow-list but skips DNS pinning."""
+    _stub_session(monkeypatch)
+
+    monkeypatch.setattr(
+        "src.core.utils.http_client._client.resolve_and_validate",
+        lambda _u: pytest.fail("resolve_and_validate should not run"),
+    )
+    called: dict[str, bool] = {}
+    monkeypatch.setattr(
+        "src.core.utils.http_client._client.assert_allowed_url",
+        lambda _u: called.setdefault("allow", True),
+    )
+
+    body, _ctype = await AsyncAPIClient.download_bytes(
+        "https://example.com/x", max_size=1024, check_ssrf=False
+    )
     assert body == b"hello-world"
-    assert ctype == "application/octet-stream"
+    assert called.get("allow") is True
+    assert ssrf.pinned_dns.get() is None
