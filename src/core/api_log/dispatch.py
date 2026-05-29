@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from src.core.api_log.models import ApiLog
-from src.core.api_log.sanitizers import _UNSET
+from src.core.api_log.sanitizers import UNSET
 from src.core.utils.fire_and_forget import FireAndForgetQueue, register
 from src.core.utils.logging import get_logger
 from src.core.utils.timing import perf_timer
@@ -71,7 +71,7 @@ class CaptureState:
     leaking the wrapper internals.
 
     Attributes:
-        result: Whatever the wrapped function returned, or ``_UNSET``
+        result: Whatever the wrapped function returned, or ``UNSET``
             when the call raised.
         exc: The exception raised by the wrapped function, or ``None``
             on the success path.
@@ -81,7 +81,7 @@ class CaptureState:
             stashes for the builder to read.
     """
 
-    result: Any = _UNSET
+    result: Any = UNSET
     exc: Exception | None = None
     elapsed_ms: float = 0.0
     extras: dict[str, Any] = field(default_factory=dict)

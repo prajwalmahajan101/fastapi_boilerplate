@@ -1,6 +1,6 @@
 """Tiny task-tracking queue for background work that must not block callers.
 
-Used by ``api_log.decorators`` (and any background writer you add) so
+Used by ``api_log.dispatch`` (and any background writer you add) so
 audit writes and similar side effects don't slow down the request hot
 path. Each queue owns its task set, registers a cleanup
 callback per task, supports a bounded drain at shutdown, and caps the

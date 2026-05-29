@@ -20,7 +20,7 @@ from typing import Any
 
 from src.core.runtime import get_settings
 
-_UNSET: Any = object()
+UNSET: Any = object()
 
 
 def redact_headers(headers: dict[str, str]) -> dict[str, str]:
@@ -94,10 +94,10 @@ def serialize_body(value: Any, max_len: int) -> str | None:
         max_len: Maximum length passed to :func:`truncate`.
 
     Returns:
-        Truncated string, ``None`` when input is ``None`` / ``_UNSET``,
+        Truncated string, ``None`` when input is ``None`` / ``UNSET``,
         or ``None`` on a serialization failure (logged-then-swallowed).
     """
-    if value is None or value is _UNSET:
+    if value is None or value is UNSET:
         return None
     try:
         if isinstance(value, str):
@@ -128,7 +128,7 @@ def compute_ttl() -> int | None:
 
 
 __all__ = [
-    "_UNSET",
+    "UNSET",
     "audit_safe",
     "compute_ttl",
     "redact_headers",

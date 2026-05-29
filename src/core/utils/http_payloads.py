@@ -18,6 +18,11 @@ from __future__ import annotations
 import json as _json
 from typing import Any
 
+try:
+    import aiohttp
+except ImportError:  # aiohttp is optional for callers that only use serialize_error_body
+    aiohttp = None  # type: ignore[assignment]
+
 
 def summarise_body_for_audit(value: Any) -> Any:
     """Return a JSON-safe representation of an outbound request body.
@@ -42,10 +47,8 @@ def summarise_body_for_audit(value: Any) -> Any:
     """
     if value is None:
         return None
-    try:
-        import aiohttp
-
-        if isinstance(value, aiohttp.FormData):
+    if aiohttp is not None and isinstance(value, aiohttp.FormData):
+        try:
             fields: list[dict[str, Any]] = []
             for field in getattr(value, "_fields", []) or []:
                 opts, headers, body = field
@@ -61,8 +64,8 @@ def summarise_body_for_audit(value: Any) -> Any:
                     entry["value"] = body if len(body) <= 200 else body[:200] + "…"
                 fields.append(entry)
             return {"__multipart__": True, "fields": fields}
-    except Exception:  # noqa: BLE001 — audit-only fallback: any failure introspecting FormData (private attr, aiohttp version drift) degrades to the bytes-length / passthrough path; never abort the call.
-        pass
+        except Exception:  # noqa: BLE001 — audit-only fallback: any failure introspecting FormData internals (private attr, aiohttp version drift) degrades to the bytes-length / passthrough path; never abort the call.
+            pass
     if isinstance(value, (bytes, bytearray)):
         return {"__bytes__": True, "size_bytes": len(value)}
     return value

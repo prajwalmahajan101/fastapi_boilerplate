@@ -18,7 +18,7 @@ from src.core.api_log.dispatch import CaptureState, capture_and_dispatch
 from src.core.api_log.error_messages import build_error_message
 from src.core.api_log.models import ApiLog, RequestDirection
 from src.core.api_log.sanitizers import (
-    _UNSET,
+    UNSET,
     compute_ttl,
     redact_headers,
     serialize_body,
@@ -158,7 +158,7 @@ def _build_inbound_log(
             )
 
     resp_body: str | None = None
-    if settings.api_log_capture_response_body and result is not _UNSET:
+    if settings.api_log_capture_response_body and result is not UNSET:
         if isinstance(result, Response):
             resp_body = (
                 truncate(

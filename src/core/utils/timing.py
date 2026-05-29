@@ -56,6 +56,16 @@ class PerfTimer:
         end = self._end if self._end is not None else time.perf_counter()
         return int((end - self._start) * 1000)
 
+    def stop(self) -> None:
+        """Freeze ``elapsed_ms`` at the current monotonic instant.
+
+        Called by :func:`perf_timer`'s ``finally`` so the contextmanager
+        does not have to reach into ``_end`` from outside the class.
+        Idempotent: subsequent calls overwrite the freeze time, which
+        is fine for the single-shot context-manager use case.
+        """
+        self._end = time.perf_counter()
+
 
 @contextmanager
 def perf_timer() -> Iterator[PerfTimer]:
@@ -71,7 +81,7 @@ def perf_timer() -> Iterator[PerfTimer]:
     try:
         yield timer
     finally:
-        timer._end = time.perf_counter()
+        timer.stop()
 
 
-__all__ = ["PerfTimer", "perf_timer"]
+__all__ = ["perf_timer"]
