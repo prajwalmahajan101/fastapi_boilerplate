@@ -8,11 +8,15 @@ without dragging in the decorator code.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
 from typing import Any
 
 from src.core.api_log.models import ApiLog
+from src.core.api_log.sanitizers import _UNSET
 from src.core.utils.fire_and_forget import FireAndForgetQueue, register
 from src.core.utils.logging import get_logger
+from src.core.utils.timing import perf_timer
 
 logger = get_logger(__name__)
 
@@ -55,4 +59,80 @@ async def persist_log(log: ApiLog) -> None:
         logger.exception("API log save failed", extra={"log_id": log.log_id})
 
 
-__all__ = ["fire_and_forget", "persist_log"]
+@dataclass
+class CaptureState:
+    """Per-call state passed to a per-direction ``build_log`` closure.
+
+    Both inbound and outbound decorators run the same skeleton — start
+    a :func:`perf_timer`, ``await func``, catch any exception, and at
+    the end submit ``persist_log(build_log(state))`` to the bounded
+    background queue. The state object lets the shared skeleton return
+    timing + result + exception to the per-direction builder without
+    leaking the wrapper internals.
+
+    Attributes:
+        result: Whatever the wrapped function returned, or ``_UNSET``
+            when the call raised.
+        exc: The exception raised by the wrapped function, or ``None``
+            on the success path.
+        elapsed_ms: Wall time the wrapped call took, in milliseconds.
+        extras: Optional per-direction context (e.g. a captured
+            request body, a published meta dict) the outer wrapper
+            stashes for the builder to read.
+    """
+
+    result: Any = _UNSET
+    exc: Exception | None = None
+    elapsed_ms: float = 0.0
+    extras: dict[str, Any] = field(default_factory=dict)
+
+
+async def capture_and_dispatch(
+    func: Callable[..., Awaitable[Any]],
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    build_log: Callable[[CaptureState], ApiLog],
+) -> Any:
+    """Run ``func`` under a timer and schedule an audit row for the call.
+
+    Owns the shared wrapper shape used by both
+    :func:`log_inbound_request` and :func:`log_outbound_request`:
+    start a :func:`perf_timer`, await ``func``, capture any exception,
+    and in ``finally`` submit ``persist_log(build_log(state))`` to the
+    bounded background queue. ``build_log`` is the per-direction
+    closure that materialises the :class:`ApiLog`; it receives the
+    populated :class:`CaptureState` and returns a synchronous result.
+
+    Args:
+        func: The wrapped async callable to invoke.
+        args: Positional arguments forwarded to ``func``.
+        kwargs: Keyword arguments forwarded to ``func``.
+        build_log: Per-direction closure that builds the ``ApiLog`` to
+            persist from the populated :class:`CaptureState`.
+
+    Returns:
+        Whatever ``func`` returned.
+
+    Raises:
+        Exception: Re-raises whatever ``func`` raised, after the audit
+            row is queued for persistence.
+    """
+    state = CaptureState()
+    with perf_timer() as t:
+        try:
+            state.result = await func(*args, **kwargs)
+            return state.result
+        except Exception as exc:
+            state.exc = exc
+            raise
+        finally:
+            state.elapsed_ms = float(t.elapsed_ms)
+            fire_and_forget(persist_log(build_log(state)))
+
+
+__all__ = [
+    "CaptureState",
+    "capture_and_dispatch",
+    "fire_and_forget",
+    "persist_log",
+]

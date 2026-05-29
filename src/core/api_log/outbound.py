@@ -14,7 +14,7 @@ from collections.abc import Callable
 from typing import Any, TypeVar
 
 from src.core.api_log.context import outbound_response_meta_ctx
-from src.core.api_log.dispatch import fire_and_forget, persist_log
+from src.core.api_log.dispatch import CaptureState, capture_and_dispatch
 from src.core.api_log.error_messages import build_error_message
 from src.core.api_log.models import ApiLog, RequestDirection
 from src.core.api_log.sanitizers import (
@@ -31,7 +31,6 @@ from src.core.exceptions.utils import (
     exception_wire_status,
 )
 from src.core.runtime import get_settings
-from src.core.utils.timing import perf_timer
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -80,36 +79,38 @@ def log_outbound_request(service_name: str) -> Callable[[F], F]:
                     after the audit row is queued.
             """
             token = outbound_response_meta_ctx.set(None)
-            result: Any = _UNSET
-            exc_obj: Exception | None = None
-            exc_type: str | None = None
-            exc_msg: str | None = None
-            with perf_timer() as t:
-                try:
-                    result = await func(*args, **kwargs)
-                    return result
-                except Exception as exc:
-                    exc_obj = exc
-                    exc_type = type(exc).__name__
-                    exc_msg = build_error_message(exc)
-                    raise
-                finally:
-                    meta = outbound_response_meta_ctx.get()
-                    outbound_response_meta_ctx.reset(token)
-                    fire_and_forget(
-                        persist_log(
-                            _build_outbound_log(
-                                func_kwargs=kwargs,
-                                service_name=service_name,
-                                result=result,
-                                duration_ms=float(t.elapsed_ms),
-                                meta=meta,
-                                exc=exc_obj,
-                                exc_type=exc_type,
-                                exc_msg=exc_msg,
-                            )
-                        )
-                    )
+
+            def build_log(state: CaptureState) -> ApiLog:
+                """Materialise the outbound ``ApiLog`` from captured state.
+
+                Reads the per-call meta dict from
+                :data:`outbound_response_meta_ctx` before the outer
+                wrapper's ``finally`` resets the token, so the ContextVar
+                still carries the request-scoped value.
+                """
+                exc_type = (
+                    type(state.exc).__name__ if state.exc is not None else None
+                )
+                exc_msg = (
+                    build_error_message(state.exc)
+                    if state.exc is not None
+                    else None
+                )
+                return _build_outbound_log(
+                    func_kwargs=kwargs,
+                    service_name=service_name,
+                    result=state.result,
+                    duration_ms=state.elapsed_ms,
+                    meta=outbound_response_meta_ctx.get(),
+                    exc=state.exc,
+                    exc_type=exc_type,
+                    exc_msg=exc_msg,
+                )
+
+            try:
+                return await capture_and_dispatch(func, args, kwargs, build_log)
+            finally:
+                outbound_response_meta_ctx.reset(token)
 
         return wrapper  # type: ignore[return-value]
 

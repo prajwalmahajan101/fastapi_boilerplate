@@ -14,7 +14,7 @@ from typing import Any, TypeVar
 from fastapi import Request
 from starlette.responses import Response
 
-from src.core.api_log.dispatch import fire_and_forget, persist_log
+from src.core.api_log.dispatch import CaptureState, capture_and_dispatch
 from src.core.api_log.error_messages import build_error_message
 from src.core.api_log.models import ApiLog, RequestDirection
 from src.core.api_log.sanitizers import (
@@ -26,7 +26,6 @@ from src.core.api_log.sanitizers import (
 )
 from src.core.context import get_request_id
 from src.core.runtime import get_settings
-from src.core.utils.timing import perf_timer
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -36,8 +35,8 @@ def log_inbound_request(service_name: str) -> Callable[[F], F]:
 
     The wrapped handler must take ``request: Request`` as a kwarg so
     the decorator can read headers / body. Persistence is dispatched
-    via :func:`fire_and_forget` — the audit write never blocks the
-    response.
+    via :func:`capture_and_dispatch` — the audit write never blocks
+    the response.
 
     Args:
         service_name: Logical service tag stored on every emitted log
@@ -85,72 +84,31 @@ def log_inbound_request(service_name: str) -> Callable[[F], F]:
             ):
                 req_body_raw = await request.body()
 
-            result: Any = _UNSET
-            exc_type: str | None = None
-            exc_msg: str | None = None
-            with perf_timer() as t:
-                try:
-                    result = await func(*args, **kwargs)
-                    return result
-                except Exception as exc:
-                    exc_type = type(exc).__name__
-                    exc_msg = build_error_message(exc)
-                    raise
-                finally:
-                    fire_and_forget(
-                        _build_and_persist_inbound_log(
-                            request=request,
-                            req_body_raw=req_body_raw,
-                            service_name=service_name,
-                            result=result,
-                            duration_ms=float(t.elapsed_ms),
-                            exc_type=exc_type,
-                            exc_msg=exc_msg,
-                        )
-                    )
+            def build_log(state: CaptureState) -> ApiLog:
+                """Materialise the inbound ``ApiLog`` from captured state."""
+                exc_type = (
+                    type(state.exc).__name__ if state.exc is not None else None
+                )
+                exc_msg = (
+                    build_error_message(state.exc)
+                    if state.exc is not None
+                    else None
+                )
+                return _build_inbound_log(
+                    request=request,
+                    req_body_raw=req_body_raw,
+                    service_name=service_name,
+                    result=state.result,
+                    duration_ms=state.elapsed_ms,
+                    exc_type=exc_type,
+                    exc_msg=exc_msg,
+                )
+
+            return await capture_and_dispatch(func, args, kwargs, build_log)
 
         return wrapper  # type: ignore[return-value]
 
     return decorator
-
-
-async def _build_and_persist_inbound_log(
-    request: Request | None,
-    req_body_raw: bytes | None,
-    service_name: str,
-    result: Any,
-    duration_ms: float,
-    exc_type: str | None,
-    exc_msg: str | None,
-) -> None:
-    """Compose and persist an inbound ``ApiLog`` row.
-
-    Pulled out of :func:`log_inbound_request`'s ``finally`` so the
-    body is testable in isolation.
-
-    Args:
-        request: The incoming ``Request`` (or ``None`` when the route
-            did not declare one as a kwarg).
-        req_body_raw: Raw request bytes captured *inside the request
-            scope* by the wrapper; ``None`` when capture is disabled
-            or the request was missing.
-        service_name: Logical service tag for the row.
-        result: Whatever the handler returned (or ``_UNSET`` on
-            failure).
-        duration_ms: Wall time spent inside the handler.
-        exc_type: Class name of the raised exception, if any.
-        exc_msg: Composite error message from :func:`build_error_message`.
-    """
-    log = _build_inbound_log(
-        request=request,
-        req_body_raw=req_body_raw,
-        service_name=service_name,
-        result=result,
-        duration_ms=duration_ms,
-        exc_type=exc_type,
-        exc_msg=exc_msg,
-    )
-    await persist_log(log)
 
 
 def _build_inbound_log(
