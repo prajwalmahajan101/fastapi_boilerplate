@@ -31,12 +31,7 @@ from src.core.utils.http_payloads import (
     summarise_body_for_audit as _summarise_body_for_audit,
 )
 from src.core.utils.logging import get_logger
-from src.core.utils.ssrf import (
-    assert_allowed_url,
-    assert_public_url,
-    pinned_dns,
-    resolve_and_validate,
-)
+from src.core.utils.ssrf import ssrf_guard
 
 logger = get_logger(__name__)
 
@@ -120,29 +115,13 @@ class AsyncAPIClient:
                 transport-level error (DNS, SSL, connection reset).
         """
         import aiohttp
-        from urllib.parse import urlparse
-
-        pin_token = None
-        if check_ssrf:
-            resolved_ips = resolve_and_validate(url)
-            assert_allowed_url(url)
-            if resolved_ips:
-                # Pin the IP set the validator approved so the custom
-                # aiohttp resolver returns the same answers at dispatch
-                # time. Without the pin, a DNS-rebinding attacker can
-                # swap a public IP for a private one between validate
-                # and dispatch (the TOCTOU Django ISSUE-028 closed).
-                host = (urlparse(url).hostname or "").lower()
-                pin_token = pinned_dns.set({host: resolved_ips})
-        else:
-            assert_allowed_url(url)
 
         timeout_cfg = aiohttp.ClientTimeout(total=timeout)
         final_headers = build_headers(auth_token, auth_type, headers)
         basic_auth = build_basic_auth(auth_token, auth_type)
 
         response_ref: dict[str, Any] = {"body": None}
-        try:
+        with ssrf_guard(url, check_ssrf=check_ssrf):
             with map_aiohttp_errors(
                 url=url,
                 method=method,
@@ -186,14 +165,7 @@ class AsyncAPIClient:
                         response.raise_for_status()
 
                     return response_body
-            # map_aiohttp_errors always raises on the unhappy path, but mypy
-            # cannot infer that — the explicit raise keeps the return type honest.
-            raise RuntimeError(
-                "unreachable: map_aiohttp_errors must raise or return"
-            )
-        finally:
-            if pin_token is not None:
-                pinned_dns.reset(pin_token)
+            raise RuntimeError("unreachable: map_aiohttp_errors must raise or return")
 
     # ── Method shortcuts ──────────────────────────────────────────────
 
@@ -421,23 +393,9 @@ class AsyncAPIClient:
                 error occurred.
         """
         import aiohttp
-        from urllib.parse import urlparse
-
-        pin_token = None
-        if check_ssrf:
-            resolved_ips = resolve_and_validate(url)
-            assert_allowed_url(url)
-            if resolved_ips:
-                # Pin the IP set the validator approved so the custom
-                # aiohttp resolver returns the same answers at dispatch
-                # time — same DNS-rebinding TOCTOU closure as ``_request``.
-                host = (urlparse(url).hostname or "").lower()
-                pin_token = pinned_dns.set({host: resolved_ips})
-        else:
-            assert_allowed_url(url)
 
         timeout_cfg = aiohttp.ClientTimeout(total=timeout)
-        try:
+        with ssrf_guard(url, check_ssrf=check_ssrf):
             with map_aiohttp_errors(
                 url=url,
                 method="GET",
@@ -471,12 +429,7 @@ class AsyncAPIClient:
                         "Content-Type", "application/octet-stream"
                     )
                     return bytes(buffer), content_type
-            raise RuntimeError(
-                "unreachable: map_aiohttp_errors must raise or return"
-            )
-        finally:
-            if pin_token is not None:
-                pinned_dns.reset(pin_token)
+            raise RuntimeError("unreachable: map_aiohttp_errors must raise or return")
 
 
 __all__ = ["AsyncAPIClient"]

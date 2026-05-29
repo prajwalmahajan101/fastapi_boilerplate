@@ -67,7 +67,10 @@ Two layers gate every outbound HTTP call made through `AsyncAPIClient`:
    and a custom aiohttp resolver returns *only* those IPs at dispatch
    time. Without the pin, a malicious zone could return a public IP
    at validation and a private one at the actual request (classic
-   DNS-rebinding TOCTOU).
+   DNS-rebinding TOCTOU). New outbound callsites must wrap their
+   dispatch in `core.utils.ssrf.ssrf_guard(url, check_ssrf=...)` rather
+   than reimplementing the validate → pin → reset sequence — that
+   helper is the single source of truth for the TOCTOU closure.
 
 2. **Outbound URL allow-list.** `outbound_url_allowlist` is a positive
    list of hosts the service is allowed to call:

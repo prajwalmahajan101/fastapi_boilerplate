@@ -31,8 +31,9 @@ from __future__ import annotations
 import ipaddress
 import logging
 import socket
+from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterator
 from urllib.parse import urlparse
 
 from src.core.exceptions.validation import ValidationError
@@ -202,3 +203,46 @@ def assert_allowed_url(url: str) -> None:
     raise OutboundURLNotAllowedError(
         f"Outbound URL host '{host}' is not in outbound_url_allowlist.",
     )
+
+
+@contextmanager
+def ssrf_guard(url: str, *, check_ssrf: bool = True) -> Iterator[None]:
+    """Validate ``url`` and pin its DNS for the duration of the ``with`` block.
+
+    Single entry point for the SSRF guard used by every outbound HTTP
+    callsite (``AsyncAPIClient._request``, ``AsyncAPIClient.download_bytes``).
+    Centralising the validate → pin → reset dance here is what stops the
+    next caller from forgetting a branch and reintroducing the
+    DNS-rebinding TOCTOU.
+
+    When ``check_ssrf`` is ``False`` only :func:`assert_allowed_url` runs,
+    matching the existing opt-out the HTTP client exposes for tests that
+    hit localhost mock servers.
+
+    Args:
+        url: Outbound URL about to be dispatched.
+        check_ssrf: When ``True`` (default), run :func:`resolve_and_validate`
+            + :func:`assert_allowed_url` and pin the resolved IP set via
+            :data:`pinned_dns`. When ``False``, only the allow-list check
+            runs.
+
+    Yields:
+        ``None`` — the caller dispatches the HTTP request inside the
+        block. ``ValidationError`` from :func:`resolve_and_validate` and
+        ``OutboundURLNotAllowedError`` from :func:`assert_allowed_url`
+        propagate to the caller unchanged.
+    """
+    pin_token = None
+    if check_ssrf:
+        resolved_ips = resolve_and_validate(url)
+        assert_allowed_url(url)
+        if resolved_ips:
+            host = (urlparse(url).hostname or "").lower()
+            pin_token = pinned_dns.set({host: resolved_ips})
+    else:
+        assert_allowed_url(url)
+    try:
+        yield
+    finally:
+        if pin_token is not None:
+            pinned_dns.reset(pin_token)

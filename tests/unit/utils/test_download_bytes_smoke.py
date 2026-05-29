@@ -82,11 +82,9 @@ async def test_download_bytes_pins_dns_then_resets(
         captured["resolved_url"] = url
         return {"203.0.113.7"}
 
+    monkeypatch.setattr("src.core.utils.ssrf.resolve_and_validate", _resolve)
     monkeypatch.setattr(
-        "src.core.utils.http_client._client.resolve_and_validate", _resolve
-    )
-    monkeypatch.setattr(
-        "src.core.utils.http_client._client.assert_allowed_url",
+        "src.core.utils.ssrf.assert_allowed_url",
         lambda _u: captured.setdefault("allow_called", True),
     )
 
@@ -119,17 +117,13 @@ async def test_download_bytes_resets_pin_on_failure(
     session.get.side_effect = RuntimeError("boom")
 
     monkeypatch.setattr(
-        "src.core.utils.http_client._client.resolve_and_validate",
+        "src.core.utils.ssrf.resolve_and_validate",
         lambda _u: {"203.0.113.8"},
     )
-    monkeypatch.setattr(
-        "src.core.utils.http_client._client.assert_allowed_url", lambda _u: None
-    )
+    monkeypatch.setattr("src.core.utils.ssrf.assert_allowed_url", lambda _u: None)
 
     with pytest.raises(RuntimeError):
-        await AsyncAPIClient.download_bytes(
-            "https://example.com/x", max_size=1024
-        )
+        await AsyncAPIClient.download_bytes("https://example.com/x", max_size=1024)
 
     assert ssrf.pinned_dns.get() is None
 
@@ -142,12 +136,12 @@ async def test_download_bytes_skips_ssrf_when_disabled(
     _stub_session(monkeypatch)
 
     monkeypatch.setattr(
-        "src.core.utils.http_client._client.resolve_and_validate",
+        "src.core.utils.ssrf.resolve_and_validate",
         lambda _u: pytest.fail("resolve_and_validate should not run"),
     )
     called: dict[str, bool] = {}
     monkeypatch.setattr(
-        "src.core.utils.http_client._client.assert_allowed_url",
+        "src.core.utils.ssrf.assert_allowed_url",
         lambda _u: called.setdefault("allow", True),
     )
 
