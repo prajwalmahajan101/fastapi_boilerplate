@@ -1,4 +1,4 @@
-"""X-API-Key authentication dependency.
+"""X-API-Key authentication provider.
 
 The flow:
 
@@ -11,11 +11,14 @@ The flow:
    (matches the Django auth backend behaviour) so a high-RPS key does
    not generate one UPDATE per request.
 
-On failure the dependency raises :class:`AuthenticationFailedError` —
+On failure the provider raises :class:`AuthenticationFailedError` —
 the exception handler renders 401 with the standard envelope. The
 exception family is registered with the handler in
 ``src/core/exceptions/handlers.py`` so routes do not need explicit
 ``responses=`` entries.
+
+The provider self-registers under the name ``"api_key"`` at import
+time; the composite dependency lives in :mod:`src.auth.registry`.
 """
 
 from __future__ import annotations
@@ -25,18 +28,19 @@ import secrets
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from fastapi import Depends, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.db.dependencies import get_session
+from src.auth.base import AuthResult
 from src.core.exceptions.auth import (
     APIKeyRevokedError,
     AuthenticationFailedError,
 )
 
 if TYPE_CHECKING:
-    from src.model.auth import APIKey, User
+    from fastapi import Request
+
+    from src.model.auth import APIKey
 
 logger = logging.getLogger(__name__)
 
@@ -83,12 +87,7 @@ async def _load_api_key_by_prefix(
 
 
 async def _debounce_last_used(api_key_id: int) -> bool:
-    """Return ``True`` when this caller should update ``last_used_at``.
-
-    Uses ``rate_limit`` cache alias (via ``get_cache``) so write
-    debounce is shared across workers. Failure to reach Redis falls
-    back to in-memory which still bounds the write rate per worker.
-    """
+    """Return ``True`` when this caller should update ``last_used_at``."""
     from src.core.resilience.cache.provider import get_cache  # noqa: PLC0415
 
     cache_key = f"apikey_used_{api_key_id}"
@@ -104,77 +103,70 @@ async def _debounce_last_used(api_key_id: int) -> bool:
         return True
 
 
-async def current_user_optional(
-    request: Request,
-    session: AsyncSession = Depends(get_session),
-) -> "User | None":
-    """Resolve the authenticated user, or ``None`` when the header is absent.
+class APIKeyProvider:
+    """X-API-Key :class:`AuthProvider` implementation."""
 
-    Use this on endpoints that work for both anonymous and authenticated
-    callers (e.g. a public health endpoint that varies its response when
-    a key is present).
+    name = "api_key"
 
-    Args:
-        request: Incoming Starlette request.
-        session: Request-scoped session injected via :func:`get_session`.
+    async def authenticate(
+        self, request: "Request", session: AsyncSession
+    ) -> AuthResult | None:
+        """Validate ``X-API-Key`` and return an :class:`AuthResult`.
 
-    Returns:
-        The ``User`` row when authentication succeeds; ``None`` when
-        the header is absent.
+        Returns ``None`` when the header is absent so the registry can
+        fall through to the next enabled provider.
 
-    Raises:
-        AuthenticationFailedError: When the header is present but the
-            key fails the prefix lookup or constant-time compare.
-        APIKeyRevokedError: When the key exists but has been revoked.
-    """
-    raw_key = request.headers.get("x-api-key")
-    if not raw_key:
-        return None
-    if len(raw_key) < 8:
-        raise AuthenticationFailedError("Invalid API key.")
+        Args:
+            request: Incoming Starlette request.
+            session: Request-scoped session.
 
-    prefix = raw_key[:8]
-    api_key = await _load_api_key_by_prefix(session, prefix)
-    if api_key is None:
-        raise AuthenticationFailedError("Invalid API key.")
+        Returns:
+            An :class:`AuthResult` carrying the user + the owning
+            ``APIKey`` row, or ``None`` when no header is present.
 
-    if not secrets.compare_digest(api_key.secret, raw_key):
-        raise AuthenticationFailedError("Invalid API key.")
+        Raises:
+            AuthenticationFailedError: Header present but invalid.
+            APIKeyRevokedError: Key recognised but revoked.
+        """
+        raw_key = request.headers.get("x-api-key")
+        if not raw_key:
+            return None
+        if len(raw_key) < 8:
+            raise AuthenticationFailedError("Invalid API key.")
 
-    if api_key.is_revoked:
-        # Defence in depth — the lookup already filters by
-        # ``revoked_at IS NULL`` but a race between revoke + auth
-        # could theoretically observe a recently-revoked key.
-        raise APIKeyRevokedError()
+        prefix = raw_key[:8]
+        api_key = await _load_api_key_by_prefix(session, prefix)
+        if api_key is None:
+            raise AuthenticationFailedError("Invalid API key.")
 
-    user = api_key.user
-    if user is None or not user.is_active:
-        raise AuthenticationFailedError("User account is disabled.")
+        if not secrets.compare_digest(api_key.secret, raw_key):
+            raise AuthenticationFailedError("Invalid API key.")
 
-    if await _debounce_last_used(api_key.id):
-        api_key.last_used_at = datetime.now(timezone.utc)
-        await session.flush()
+        if api_key.is_revoked:
+            # Defence in depth — the lookup already filters by
+            # ``revoked_at IS NULL`` but a race between revoke + auth
+            # could theoretically observe a recently-revoked key.
+            raise APIKeyRevokedError()
 
-    # Stash on request.state so handlers / RBAC checks can pull the
-    # owning key out without re-running the lookup.
-    request.state.api_key = api_key
-    return user
+        user = api_key.user
+        if user is None or not user.is_active:
+            raise AuthenticationFailedError("User account is disabled.")
 
+        if await _debounce_last_used(api_key.id):
+            api_key.last_used_at = datetime.now(timezone.utc)
+            await session.flush()
 
-async def current_user(
-    request: Request,
-    session: AsyncSession = Depends(get_session),
-) -> "User":
-    """Mandatory variant of :func:`current_user_optional`.
-
-    Raises:
-        AuthenticationFailedError: When the header is absent or the
-            credentials fail to validate.
-    """
-    user = await current_user_optional(request, session)
-    if user is None:
-        raise AuthenticationFailedError("Missing API key.")
-    return user
+        # Stash on request.state so handlers / RBAC checks can pull the
+        # owning key out without re-running the lookup. (The registry
+        # additionally stashes the full AuthResult under request.state.auth.)
+        request.state.api_key = api_key
+        return AuthResult(user=user, provider=self.name, principal=api_key)
 
 
-__all__ = ["current_user", "current_user_optional", "generate_api_key"]
+# Self-register at import time so the registry picks us up.
+from src.auth import registry as _registry  # noqa: E402
+
+_registry.register(APIKeyProvider())
+
+
+__all__ = ["APIKeyProvider", "generate_api_key"]
