@@ -44,5 +44,16 @@ this project does not yet publish releases, so changes are grouped under
   burst load. New settings: `api_log_batch_size` (100),
   `api_log_batch_max_interval_seconds` (1.0s),
   `api_log_batch_queue_size` (5000). (ISSUE-019)
+
+### Refactored
+
+- `src/core/utils/http_client.py` (643-line god-class) is now a package
+  split along seams: `_session.py` (loop-aware `SessionManager`), `_auth.py`
+  (`AuthType` + pure header/Basic-auth builders), `_errors.py` (aiohttp →
+  typed-exception mapping via `map_aiohttp_errors` context manager), and
+  `_client.py` (the orchestrator). Public import path
+  `from src.core.utils.http_client import AsyncAPIClient, AuthType` is
+  unchanged. The loop-ownership silent reset now logs a warning so a
+  worker thread spinning its own loop is visible in operator logs. (ISSUE-020)
 </content>
 </invoke>
