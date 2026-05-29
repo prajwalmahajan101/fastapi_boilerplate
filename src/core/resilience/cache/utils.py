@@ -2,8 +2,11 @@
 
 Fail-open semantics: a missing or broken backend never raises out of
 ``get_cached_result`` / ``set_cached_result``. ``bump_dataset_cache_version``
-will raise ``CacheVersionError`` only if the backend cannot reliably
-implement the atomic ``add+incr`` dance.
+will raise :class:`CacheVersionError` only if the backend cannot reliably
+implement the atomic ``add+incr`` dance. ``CacheVersionError`` is part of
+the project's :class:`BaseCustomError` hierarchy (via
+:class:`InfrastructureError`), so any escape lands on the standard error
+envelope rather than the unhandled-500 fallback.
 """
 
 from __future__ import annotations
@@ -13,6 +16,7 @@ import json
 import logging
 from typing import Any
 
+from src.core.exceptions.infrastructure import InfrastructureError
 from src.core.resilience.cache.provider import get_cache
 
 logger = logging.getLogger(__name__)
@@ -21,8 +25,11 @@ _CACHE_KEY_VERSION = 1
 _DATASET_VERSION_PREFIX = "dataset_cache_version"
 
 
-class CacheVersionError(Exception):
+class CacheVersionError(InfrastructureError):
     """Backend cannot reliably bump a version counter."""
+
+    default_message = "Cache backend cannot bump the dataset version counter."
+    error_code = "CACHE_VERSION_ERROR"
 
 
 def _serialize_params(params: dict[str, Any] | None) -> str:
@@ -194,7 +201,7 @@ async def bump_dataset_cache_version(dataset_id: int, *, alias: str = "default")
             "Bumped dataset cache version to %d (dataset=%d)", new_version, dataset_id
         )
         return new_version
-    except ValueError:
+    except KeyError:
         pass
 
     if await cache.add(key, 1):
@@ -209,7 +216,7 @@ async def bump_dataset_cache_version(dataset_id: int, *, alias: str = "default")
             dataset_id,
         )
         return new_version
-    except ValueError as exc:
+    except KeyError as exc:
         raise CacheVersionError(
             f"Failed to bump cache version for dataset {dataset_id}: "
             "key disappeared between add() and incr(). Check cache backend health."

@@ -85,12 +85,13 @@ class InMemoryCacheBackend(BaseCacheBackend):
             The new counter value after the increment.
 
         Raises:
-            ValueError: ``key`` doesn't exist or doesn't hold an int.
+            KeyError: ``key`` doesn't exist.
+            ValueError: ``key`` holds a non-integer value.
         """
         async with self._lock:
             entry = self._store.get(key)
             if entry is None:
-                raise ValueError(f"Key '{key}' does not exist for incr.")
+                raise KeyError(key)
             value, expires_at = entry
             current = _deserialize(value)
             try:

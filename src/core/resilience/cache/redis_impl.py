@@ -175,7 +175,7 @@ class RedisCacheBackend(BaseCacheBackend):
         # contract. Only flip for transport / connection failures.
         """Increment an integer counter at ``key`` by 1.
 
-        Raises ``ValueError`` (without flipping to fallback) when the
+        Raises ``KeyError`` (without flipping to fallback) when the
         key is absent — callers rely on this to detect cold start.
 
         Args:
@@ -185,7 +185,7 @@ class RedisCacheBackend(BaseCacheBackend):
             The new counter value after the increment.
 
         Raises:
-            ValueError: ``key`` does not yet exist.
+            KeyError: ``key`` does not yet exist.
         """
         if not await self._try_recover():
             return await self._fallback.incr(key)
@@ -194,9 +194,9 @@ class RedisCacheBackend(BaseCacheBackend):
             # To match the contract (raise on missing), check existence first.
             exists = await self._redis.exists(key)
             if not exists:
-                raise ValueError(f"Key '{key}' does not exist for incr.")
+                raise KeyError(key)
             return int(await self._redis.incr(key))
-        except ValueError:
+        except KeyError:
             raise
         except Exception as exc:  # noqa: BLE001
             await self._flip_fallback("incr", exc)
