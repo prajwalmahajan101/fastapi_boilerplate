@@ -13,18 +13,26 @@ Delete this module once you have real routes.
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
+from pydantic import BaseModel
 
 from src.common.openapi_metadata import DEFAULT_RESPONSES
 from src.core.api_log import log_inbound_request
 from src.core.resilience.throttle import rate_limit
-from src.core.responses import SuccessResponse
+from src.core.responses import SuccessEnvelope, SuccessResponse
 
 router = APIRouter()
+
+
+class HelloData(BaseModel):
+    """Payload shape for the hello response envelope."""
+
+    message: str
 
 
 @router.get(
     "/hello",
     summary="Say hello",
+    response_model=SuccessEnvelope[HelloData],
     dependencies=[Depends(rate_limit("endpoint", "60/min"))],
     responses={**DEFAULT_RESPONSES},
 )

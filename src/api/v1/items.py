@@ -16,7 +16,12 @@ from src.core.api_log import log_inbound_request
 from src.core.db.dependencies import get_session
 from src.core.db.transaction import atomic
 from src.core.resilience.throttle import rate_limit
-from src.core.responses import PaginatedResponse, SuccessResponse
+from src.core.responses import (
+    PaginatedResponse,
+    SuccessEnvelope,
+    SuccessResponse,
+)
+from src.core.responses.schemas import PaginatedData
 from src.schema.item import ItemCreate, ItemRead, ItemUpdate
 from src.service.item_service import ItemService
 
@@ -27,6 +32,7 @@ router = APIRouter()
     "",
     summary="Create an item",
     status_code=status.HTTP_201_CREATED,
+    response_model=SuccessEnvelope[ItemRead],
     dependencies=[Depends(rate_limit("endpoint", "30/min"))],
     responses={**DEFAULT_RESPONSES},
 )
@@ -59,6 +65,7 @@ async def create_item(
 @router.get(
     "",
     summary="List items",
+    response_model=SuccessEnvelope[PaginatedData[ItemRead]],
     dependencies=[Depends(rate_limit("endpoint", "100/min"))],
     responses={**DEFAULT_RESPONSES},
 )
@@ -93,6 +100,7 @@ async def list_items(
 @router.get(
     "/{item_id}",
     summary="Get an item",
+    response_model=SuccessEnvelope[ItemRead],
     dependencies=[Depends(rate_limit("endpoint", "100/min"))],
     responses={**DEFAULT_RESPONSES, **RESPONSES_NOT_FOUND},
 )
@@ -123,6 +131,7 @@ async def get_item(
 @router.patch(
     "/{item_id}",
     summary="Update an item",
+    response_model=SuccessEnvelope[ItemRead],
     dependencies=[Depends(rate_limit("endpoint", "30/min"))],
     responses={**DEFAULT_RESPONSES, **RESPONSES_NOT_FOUND},
 )
@@ -161,6 +170,7 @@ async def update_item(
 @router.delete(
     "/{item_id}",
     summary="Delete an item",
+    response_model=SuccessEnvelope[None],
     dependencies=[Depends(rate_limit("endpoint", "30/min"))],
     responses={**DEFAULT_RESPONSES, **RESPONSES_NOT_FOUND},
 )
