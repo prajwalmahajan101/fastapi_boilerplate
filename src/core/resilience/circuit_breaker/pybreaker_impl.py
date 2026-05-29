@@ -83,14 +83,38 @@ class PyBreakerCircuitBreaker(BaseCircuitBreaker):
         return self._name
 
     async def is_available(self) -> bool:
-        return self._breaker.current_state != "open"
+        """Return whether a call would clear the breaker right now.
+
+        Pybreaker transitions OPEN → HALF_OPEN only on the next
+        ``.call()`` — its ``current_state`` does not auto-probe. To
+        keep the contract aligned with :class:`InMemoryCircuitBreaker`
+        we treat "open but reset timeout elapsed" as available, so the
+        base ``call`` helper lets the dispatch through and pybreaker
+        then drives the half-open probe internally.
+        """
+        if self._breaker.current_state != "open":
+            return True
+        if not self._opened_at:
+            return False
+        return (time.monotonic() - self._opened_at) >= self._breaker.reset_timeout
 
     async def record_success(self) -> None:
-        """Note a successful call, advancing HALF_OPEN → CLOSED when stable."""
+        """Note a successful call, advancing OPEN/HALF_OPEN → CLOSED when stable."""
         state = self._breaker.current_state
         if state == "open":
-            # Cannot transition out of OPEN until pybreaker's own timer
-            # decides — calls in this window are dropped by design.
+            # ``is_available`` may have reported True because the reset
+            # timeout has elapsed, but pybreaker only transitions on its
+            # own ``.call()``. Drive a no-op probe through pybreaker so
+            # the state machine catches up to reality.
+            if self._opened_at and (
+                time.monotonic() - self._opened_at
+            ) >= self._breaker.reset_timeout:
+                try:
+                    self._breaker.call(lambda: None)
+                except self._pybreaker_mod.CircuitBreakerError:
+                    return
+                if self._breaker.current_state == "closed":
+                    self._opened_at = 0.0
             return
         if state == "half-open":
             try:
