@@ -39,12 +39,14 @@ _RECOVERY_PROBE_INTERVAL_S = 30.0
 class RedisCacheBackend(BaseCacheBackend):
     """Distributed cache using ``redis.asyncio``."""
 
-    def __init__(self, redis_client: Any) -> None:
+    def __init__(self, redis_client: Any, *, alias: str = "cache:default") -> None:
         """Bind the backend to an ``aioredis``-style async client.
 
         Args:
             redis_client: An async Redis client (``redis.asyncio.Redis``
                 or compatible).
+            alias: Stable identifier used by the recovery monitor; the
+                provider passes ``"cache:<config-alias>"``.
         """
         self._redis = redis_client
         self._fallback = InMemoryCacheBackend()
@@ -54,6 +56,36 @@ class RedisCacheBackend(BaseCacheBackend):
         # Initialised to 0.0 so the first degraded operation probes
         # immediately.
         self._last_probe_at: float = 0.0
+        self.alias = alias
+
+    @property
+    def health(self) -> BackendHealth:
+        """Expose the current ``BackendHealth`` to the recovery monitor."""
+        return self._health
+
+    async def try_recover(self) -> bool:
+        """Probe Redis and clear the sticky fallback flag on success.
+
+        Returns:
+            ``True`` exactly when this call flipped the internal state
+            from ``DEGRADED`` to ``ACTIVE``. ``False`` for an already-
+            ``ACTIVE`` backend or a probe that still found Redis down.
+        """
+        if self._health is BackendHealth.ACTIVE:
+            return False
+        try:
+            if not bool(await self._redis.ping()):
+                return False
+        except Exception:  # noqa: BLE001
+            return False
+        async with self._lock:
+            if self._health is BackendHealth.DEGRADED:
+                self._health = BackendHealth.ACTIVE
+                logger.info(
+                    "Redis cache recovered (monitor probe); leaving fallback mode."
+                )
+                return True
+        return False
 
     @property
     def backend_name(self) -> str:

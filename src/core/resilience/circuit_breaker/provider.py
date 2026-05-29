@@ -50,11 +50,16 @@ async def _create_registry() -> BaseCircuitBreakerRegistry:
     Returns:
         The constructed registry (``RedisRegistry`` or ``InMemoryRegistry``).
     """
+    from src.core.resilience.recovery import (
+        register_boot_fallback,
+        register_for_recovery,
+    )
     from src.core.utils.redis import get_redis_client
 
     settings = get_settings()
     alias = settings.circuit_breaker_redis_alias
     prefix = settings.circuit_breaker_key_prefix
+    recovery_alias = f"breaker:{alias}"
 
     try:
         redis_client = await get_redis_client(alias)
@@ -64,9 +69,19 @@ async def _create_registry() -> BaseCircuitBreakerRegistry:
             alias,
             exc,
         )
+        register_boot_fallback(recovery_alias)
         return InMemoryRegistry()
 
-    return await RedisRegistry.create(redis_client, key_prefix=prefix)
+    registry = await RedisRegistry.create(
+        redis_client, key_prefix=prefix, alias=recovery_alias
+    )
+    # ``RedisRegistry.create`` returns ``InMemoryRegistry`` on ping
+    # failure — only register Redis-backed registries.
+    if isinstance(registry, RedisRegistry):
+        register_for_recovery(registry)
+    else:
+        register_boot_fallback(recovery_alias)
+    return registry
 
 
 async def reset_registry() -> None:

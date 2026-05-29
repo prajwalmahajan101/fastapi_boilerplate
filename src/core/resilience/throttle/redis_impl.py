@@ -70,7 +70,12 @@ class RedisThrottle(BaseThrottle):
     """Distributed sliding-window throttle via a single Lua call per check."""
 
     def __init__(
-        self, redis_client: Any, lua_sha: str, key_prefix: str = "throttle"
+        self,
+        redis_client: Any,
+        lua_sha: str,
+        key_prefix: str = "throttle",
+        *,
+        alias: str = "throttle:default",
     ) -> None:
         """Wire the throttle to a Redis client + preloaded Lua script.
 
@@ -89,6 +94,36 @@ class RedisThrottle(BaseThrottle):
         # Initialised to 0.0 so the first degraded ``check()`` probes
         # immediately.
         self._last_probe_at: float = 0.0
+        self.alias = alias
+
+    @property
+    def health(self) -> BackendHealth:
+        """Expose the current ``BackendHealth`` to the recovery monitor."""
+        return self._health
+
+    async def try_recover(self) -> bool:
+        """Probe Redis and clear the sticky fallback flag on success.
+
+        Returns:
+            ``True`` exactly when this call flipped ``DEGRADED`` →
+            ``ACTIVE``. ``False`` for an already-``ACTIVE`` backend or
+            a probe that still found Redis down.
+        """
+        if self._health is BackendHealth.ACTIVE:
+            return False
+        try:
+            if not bool(await self._redis.ping()):
+                return False
+        except Exception:  # noqa: BLE001
+            return False
+        async with self._lock:
+            if self._health is BackendHealth.DEGRADED:
+                self._health = BackendHealth.ACTIVE
+                logger.info(
+                    "Redis throttle recovered (monitor probe); leaving fallback mode."
+                )
+                return True
+        return False
 
     @classmethod
     async def create(
@@ -96,6 +131,7 @@ class RedisThrottle(BaseThrottle):
         redis_client: Any,
         *,
         key_prefix: str = "throttle",
+        alias: str = "throttle:default",
     ) -> "RedisThrottle":
         """Async constructor — pings Redis and pre-loads the Lua script.
 
@@ -108,7 +144,7 @@ class RedisThrottle(BaseThrottle):
         """
         await redis_client.ping()
         lua_sha = await redis_client.script_load(THROTTLE_LUA_SCRIPT)
-        return cls(redis_client, lua_sha, key_prefix)
+        return cls(redis_client, lua_sha, key_prefix, alias=alias)
 
     async def _flip_fallback(self, exc: Exception) -> None:
         """Mark the throttle as degraded and log the first occurrence.

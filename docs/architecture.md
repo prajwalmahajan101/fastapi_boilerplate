@@ -113,6 +113,29 @@ throttle/rate-limit primitives. Each backend is Redis-backed with an
 `@resilient` / `@retry_with_exponential_backoff` decorators and gate routes
 with `rate_limit(...)` dependencies.
 
+### Background recovery monitor
+
+A single `asyncio.Task` (`src.core.resilience.recovery.monitor`) lives
+for the lifetime of the process. While every backend is `ACTIVE` it
+sleeps; once any backend goes `DEGRADED` it `PING`s the configured
+Redis alias and waits for **three consecutive successes** before
+driving recovery, so a flapping Redis cannot flap every backend in
+the registry. The monitor exists for two cases the in-call / readyz
+recovery paths do not cover:
+
+* **Idle workers** — a worker servicing no traffic and not being
+  polled by `/readyz` would otherwise stay degraded after a Redis
+  blip until the next request arrived.
+* **Boot-time fallback** — a backend that returned the bare
+  `InMemory*` implementation because the very first PING failed has
+  no Redis client of its own; the monitor pings the alias directly
+  and dispatches `reset_backend(alias)` so the next `get_*` call
+  rebuilds against the now-live Redis.
+
+Concrete consumers (cache primers, session-token re-primers) register
+warm-up hooks via `register_warm_hook(fn)`; they fan out after **any**
+backend successfully re-attaches.
+
 ## Startup / shutdown
 
 `src/app.py`'s lifespan: bind settings into `core.runtime` → wait briefly

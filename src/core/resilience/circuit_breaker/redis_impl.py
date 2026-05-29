@@ -317,6 +317,8 @@ class RedisRegistry(BaseCircuitBreakerRegistry):
         lua_sha: str,
         default_config: CircuitBreakerConfig | None = None,
         key_prefix: str = "cb",
+        *,
+        alias: str = "breaker:default",
     ) -> None:
         """Bind the registry to a Redis client + preloaded Lua script.
 
@@ -333,6 +335,26 @@ class RedisRegistry(BaseCircuitBreakerRegistry):
         self._key_prefix = key_prefix
         self._breakers: dict[str, RedisCircuitBreaker] = {}
         self._lock = asyncio.Lock()
+        self.alias = alias
+
+    @property
+    def health(self) -> BackendHealth:
+        """Always ``ACTIVE`` — per-call degradation lives on each breaker.
+
+        The registry itself does not flip flags; the recovery monitor's
+        contract is satisfied because :meth:`try_recover` is a no-op
+        ``False`` (already-ACTIVE).
+        """
+        return BackendHealth.ACTIVE
+
+    async def try_recover(self) -> bool:
+        """No-op for the registry — per-breaker recovery is automatic.
+
+        Each :class:`RedisCircuitBreaker` re-flips to ``ACTIVE`` on the
+        next successful ``EVALSHA`` inside ``_call_lua``, so the
+        registry has nothing to recover at its own level.
+        """
+        return False
 
     @classmethod
     async def create(
@@ -341,6 +363,7 @@ class RedisRegistry(BaseCircuitBreakerRegistry):
         *,
         default_config: CircuitBreakerConfig | None = None,
         key_prefix: str = "cb",
+        alias: str = "breaker:default",
     ) -> "RedisRegistry | InMemoryRegistry":
         """Async constructor — pings Redis, loads the script, or degrades.
 
@@ -367,6 +390,7 @@ class RedisRegistry(BaseCircuitBreakerRegistry):
                 lua_sha=lua_sha,
                 default_config=default_config,
                 key_prefix=key_prefix,
+                alias=alias,
             )
         except Exception as exc:
             logger.warning(

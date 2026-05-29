@@ -22,6 +22,7 @@ from __future__ import annotations
 from src.core.api_log.factory import _reset_for_tests as _reset_api_log
 from src.core.resilience.cache.provider import reset_caches
 from src.core.resilience.circuit_breaker.provider import reset_registry
+from src.core.resilience.recovery import reset_recovery_state
 from src.core.resilience.throttle.provider import reset_throttle
 from src.core.utils.db import dispose_all_engines
 from src.core.utils.fire_and_forget import _reset_registry as _reset_queues
@@ -45,6 +46,10 @@ async def reset_all_singletons() -> None:
     await reset_caches()
     await reset_throttle()
     await reset_registry()
+    # Recovery registry holds references to the now-discarded backends —
+    # drop them last so the providers above don't see stale entries on
+    # a follow-up rebuild.
+    await reset_recovery_state()
 
     # Background queues — the registry list is itself a singleton.
     _reset_queues()

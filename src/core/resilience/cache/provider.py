@@ -45,17 +45,25 @@ async def _create_cache(alias: str) -> BaseCacheBackend:
         Either a ``RedisCacheBackend`` (Redis reachable) or
         ``InMemoryCacheBackend`` (degraded path with a warning log).
     """
+    from src.core.resilience.recovery import (
+        register_boot_fallback,
+        register_for_recovery,
+    )
     from src.core.utils.redis import get_redis_client
 
+    recovery_alias = f"cache:{alias}"
     try:
         client = await get_redis_client(alias)
         await client.ping()
         logger.info("Cache backend ready (redis, alias=%s)", alias)
-        return RedisCacheBackend(client)
+        backend = RedisCacheBackend(client, alias=recovery_alias)
+        register_for_recovery(backend)
+        return backend
     except Exception as exc:  # noqa: BLE001
         logger.warning(
             "Cache alias '%s' Redis unavailable, using in-memory: %s", alias, exc
         )
+        register_boot_fallback(recovery_alias)
         return InMemoryCacheBackend()
 
 

@@ -32,6 +32,7 @@ from src.common.settings import settings
 from src.core.api_log import close_repository, init_repository
 from src.core.exceptions import register_exception_handlers
 from src.core.middleware import install_core_middleware
+from src.core.resilience.recovery import monitor as recovery_monitor
 from src.core.runtime import configure
 from src.core.utils.crypto import _fernet
 from src.core.utils.fire_and_forget import drain_all
@@ -79,10 +80,17 @@ async def lifespan(app: FastAPI):
             )
     await init_db_engine()
     await init_repository()
+    # Start the background recovery monitor *after* the resilience
+    # providers' boot-time PINGs have happened (during their first
+    # lazy access) so it inherits an accurate boot-fallback alias set.
+    # Started here rather than at module import so tests don't spawn
+    # rogue tasks when they import the app.
+    recovery_monitor.start()
     logger.info("Application startup complete.")
     try:
         yield
     finally:
+        await recovery_monitor.stop()
         await close_repository()
         await drain_all(settings.api_log_drain_timeout_seconds)
         await AsyncAPIClient.close_session()

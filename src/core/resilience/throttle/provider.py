@@ -45,16 +45,24 @@ async def _create_throttle() -> BaseThrottle:
     Returns:
         The throttle backend (``RedisThrottle`` or ``InMemoryThrottle``).
     """
+    from src.core.resilience.recovery import (
+        register_boot_fallback,
+        register_for_recovery,
+    )
     from src.core.utils.redis import get_redis_client
 
     alias = get_settings().rate_limit_redis_alias
+    recovery_alias = f"throttle:{alias}"
     try:
         client = await get_redis_client(alias)
-        return await RedisThrottle.create(client)
+        throttle = await RedisThrottle.create(client, alias=recovery_alias)
+        register_for_recovery(throttle)
+        return throttle
     except Exception as exc:  # noqa: BLE001
         logger.warning(
             "Throttle: Redis alias '%s' unavailable, using in-memory: %s", alias, exc
         )
+        register_boot_fallback(recovery_alias)
         return InMemoryThrottle()
 
 
