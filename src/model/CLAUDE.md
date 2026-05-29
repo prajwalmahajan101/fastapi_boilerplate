@@ -35,3 +35,10 @@
 
 `src/model/item.py` — a minimal `NamedBaseModel` subclass showing the
 shape, the column conventions, and the `__tablename__` declaration.
+
+## Tests
+
+Reference test directory: [`tests/integration/repository/`](../../tests/integration/repository/)
+— ORM models are exercised via repository round-trips against
+Postgres. See [`tests/CLAUDE.md`](../../tests/CLAUDE.md) for the tier
+conventions.

@@ -28,3 +28,9 @@ No ORM models live in this package — models belong in `src/model`.
 
 `src/db/lifecycle.py` is the canonical "open / close one engine across
 the whole app" wiring. Mirror it for any future per-DSN engine.
+
+## Tests
+
+Reference test directory: [`tests/integration/repository/`](../../tests/integration/repository/)
+— integration tests against the real Postgres engine. See
+[`tests/CLAUDE.md`](../../tests/CLAUDE.md) for the tier conventions.

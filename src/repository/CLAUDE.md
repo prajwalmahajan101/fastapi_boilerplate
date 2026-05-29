@@ -32,3 +32,9 @@
 
 `src/repository/item_repo.py` — minimal subclass extending the generic
 CRUD surface; only adds bespoke queries the example needs.
+
+## Tests
+
+Reference test directory: [`tests/integration/repository/`](../../tests/integration/repository/)
+— repositories are tested against the real Postgres engine. See
+[`tests/CLAUDE.md`](../../tests/CLAUDE.md) for the tier conventions.

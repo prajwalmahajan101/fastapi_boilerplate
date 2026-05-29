@@ -38,3 +38,10 @@
 `src/service/item_service.py` — `BaseNamedModelService[Item]` with a
 `pre_create` hook normalising the business code. Use the same shape
 for new aggregates.
+
+## Tests
+
+Reference test directory: [`tests/integration/repository/`](../../tests/integration/repository/)
+— services are exercised through their repository against Postgres;
+HTTP-level wiring is covered by [`tests/e2e/`](../../tests/e2e/).
+See [`tests/CLAUDE.md`](../../tests/CLAUDE.md) for the tier conventions.

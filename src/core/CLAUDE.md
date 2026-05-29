@@ -63,3 +63,11 @@ into a mechanical gate.
 - Optional-dep guarded import: `src/core/utils/http_payloads.py`.
 - Allow-listed downstream-only helper: `src/core/db/best_effort.py`
   (see `scripts/check_dead_utils.py`'s `ALLOWLIST`).
+
+## Tests
+
+Reference test for the resilience layer:
+[`tests/integration/resilience/test_throttle_redis_exemplar.py`](../../tests/integration/resilience/test_throttle_redis_exemplar.py).
+Reference tests for the audit pipeline live under
+[`tests/unit/api_log/`](../../tests/unit/api_log/). See
+[`tests/CLAUDE.md`](../../tests/CLAUDE.md) for the tier conventions.

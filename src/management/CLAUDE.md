@@ -34,3 +34,10 @@ ad-hoc scripts at the repo root.
 `src/management/init_db.py` — shows the `configure(settings)` →
 `get_app_engine()` → `metadata.create_all(...)` → `await engine.dispose()`
 shape every management CLI should mirror.
+
+## Tests
+
+CLIs in this module are exercised end-to-end by the operator at
+deploy time; there is no dedicated test directory yet. Add unit
+tests for new pure helpers under [`tests/unit/`](../../tests/unit/).
+See [`tests/CLAUDE.md`](../../tests/CLAUDE.md) for the tier conventions.

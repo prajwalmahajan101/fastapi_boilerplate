@@ -33,3 +33,9 @@
 `src/schema/item.py` — `ItemCreate` (writes), `ItemUpdate` (partial
 writes), `ItemRead` (read shape with `from_attributes` enabled by the
 `BaseSchema` parent).
+
+## Tests
+
+Reference test directory: [`tests/unit/`](../../tests/unit/) — schemas
+are pure pydantic models, exercised in-isolation. See
+[`tests/CLAUDE.md`](../../tests/CLAUDE.md) for the tier conventions.

@@ -57,8 +57,14 @@ module.
 - Migrations: `alembic revision --autogenerate -m "<msg>"` then
   `alembic upgrade head`.
 - Run server (no Docker): `python main.py`.
-- Run tests: `pytest` (config in `pytest.ini`; the suite needs no Postgres
-  or Redis — see `tests/conftest.py`).
+- Run tests:
+  - `pytest -m unit` — fast loop, no services (default for local dev).
+  - `pytest -m integration` — one layer against real Postgres / Redis
+    (auto-skips when the service is down).
+  - `pytest -m e2e` — full HTTP request through the stack.
+  - `pytest` — all three tiers.
+  - See [`docs/testing.md`](docs/testing.md) for the runbook and
+    [`tests/CLAUDE.md`](tests/CLAUDE.md) for the conventions.
 - Pre-commit hooks: `pre-commit install`.
 
 ## Git workflow rules

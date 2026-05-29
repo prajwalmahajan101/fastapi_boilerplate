@@ -38,3 +38,9 @@ is mechanically enforced by `scripts/check_layering.py` (pre-commit).
 
 - Subclassing `CoreSettings`: `src/common/settings.py`.
 - OpenAPI response dict definition + composition: `src/common/openapi_metadata.py`.
+
+## Tests
+
+Reference test: [`tests/unit/responses/test_envelope.py`](../../tests/unit/responses/test_envelope.py)
+— pins the envelope wire contract. See
+[`tests/CLAUDE.md`](../../tests/CLAUDE.md) for the tier conventions.

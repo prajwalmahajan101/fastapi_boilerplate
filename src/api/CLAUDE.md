@@ -49,3 +49,9 @@ The `hello` and `items` routers are examples — delete them.
 - Read-only listing with pagination: `src/api/v1/items.py::list_items`.
 - Single-resource read with 404: `src/api/v1/items.py::get_item`.
 - Minimal route shape: `src/api/v1/hello.py`.
+
+## Tests
+
+Reference test: [`tests/e2e/test_hello_smoke.py`](../../tests/e2e/test_hello_smoke.py)
+— full HTTP smoke through the example route. See
+[`tests/CLAUDE.md`](../../tests/CLAUDE.md) for the tier conventions.
