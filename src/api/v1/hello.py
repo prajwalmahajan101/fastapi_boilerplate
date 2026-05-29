@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
 
-from src.common.openapi_metadata import RESPONSES_RATE_LIMITED
+from src.common.openapi_metadata import DEFAULT_RESPONSES
 from src.core.api_log import log_inbound_request
 from src.core.resilience.throttle import rate_limit
 from src.core.responses import SuccessResponse
@@ -26,7 +26,7 @@ router = APIRouter()
     "/hello",
     summary="Say hello",
     dependencies=[Depends(rate_limit("endpoint", "60/min"))],
-    responses={**RESPONSES_RATE_LIMITED},
+    responses={**DEFAULT_RESPONSES},
 )
 @log_inbound_request(service_name="example_api")
 async def hello(request: Request, name: str = "world"):

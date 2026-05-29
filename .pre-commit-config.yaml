@@ -72,3 +72,24 @@ repos:
         language: system
         files: ^src/core/.*\.py$
         pass_filenames: false
+
+      # Mechanically enforce src/core/CLAUDE.md's "one rule": src.core
+      # must not import from src.common or any domain package.
+      - id: check-layering
+        name: check src/core/ imports stay within core + stdlib + third-party
+        entry: python scripts/check_layering.py
+        language: system
+        files: ^src/core/.*\.py$
+        pass_filenames: false
+
+      # Every route under src/api/ must declare DEFAULT_RESPONSES so
+      # Swagger renders the ErrorEnvelope contract uniformly. Manual
+      # stage — AST-only, fast, but only meaningful when running across
+      # all api files at once.
+      - id: check-openapi-metadata
+        name: check every route includes DEFAULT_RESPONSES
+        entry: python scripts/check_openapi_metadata.py
+        language: system
+        files: ^src/api/.*\.py$
+        pass_filenames: false
+        stages: [manual]
