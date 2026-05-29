@@ -3,13 +3,16 @@
 A scope object is a small callable that, given a FastAPI ``Request``, a
 rate string ("100/min"), and the settings, returns the
 ``(identifier, limit, window_seconds)`` tuple the throttle backend
-expects. Five built-in scopes match the Django implementation:
+expects. Six built-in scopes match the Django implementation:
 
     * ``user_tier`` — pick a per-tier rate (anon/user/admin) from settings.
     * ``burst`` — short window, per (user|IP).
     * ``global`` — single bucket per app or per IP.
     * ``endpoint`` — per (route, user|IP).
     * ``ip`` — per IP only.
+    * ``auth`` — per IP under the ``auth:`` namespace; default rate
+      5/min mirrors Django's ``AuthEndpointThrottle``. Applied to the
+      unauthenticated ``/auth/*`` surface.
 
 Principal resolution is auth-agnostic: if an auth layer stamps
 ``request.state.system_id`` (and/or ``request.state.api_key_id``) on the
@@ -246,12 +249,37 @@ class IPThrottle(_BaseScope):
         return f"ip:{client_ip(request)}", limit, window
 
 
+class AuthThrottle(_BaseScope):
+    """Per-IP throttle for unauthenticated auth endpoints.
+
+    Mirrors Django's ``AuthEndpointThrottle`` (``auth_burst`` scope) —
+    a narrow defence-in-depth limit on ``/auth/login``,
+    ``/auth/token/refresh``, ``/auth/logout``, and the OAuth callback
+    routes. Bucket-namespaced as ``auth:<ip>`` so it never shares a
+    counter with the generic ``ip`` scope.
+    """
+
+    def identify(self, request: "Request", rate: str) -> tuple[str, int, int]:
+        """Bucket on the resolved client IP in the ``auth:`` namespace.
+
+        Args:
+            request: Incoming request.
+            rate: Rate string accepted by :func:`parse_rate`.
+
+        Returns:
+            ``(auth:<client_ip>, limit, window_seconds)`` triple.
+        """
+        limit, window = parse_rate(rate)
+        return f"auth:{client_ip(request)}", limit, window
+
+
 SCOPES: dict[str, _BaseScope] = {
     "user_tier": UserTierThrottle(),
     "burst": BurstThrottle(),
     "global": GlobalThrottle(),
     "endpoint": EndpointThrottle(),
     "ip": IPThrottle(),
+    "auth": AuthThrottle(),
 }
 
 

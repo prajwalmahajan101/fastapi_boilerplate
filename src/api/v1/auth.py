@@ -185,7 +185,7 @@ async def revoke_api_key(
     "/token/refresh",
     summary="Exchange a refresh token for a new access pair",
     response_model=SuccessEnvelope[TokenPair],
-    dependencies=[Depends(rate_limit("ip", "30/min"))],
+    dependencies=[Depends(rate_limit("auth", "5/min"))],
     responses={**DEFAULT_RESPONSES, **RESPONSES_UNAUTHORIZED},
 )
 @log_inbound_request(service_name="auth_api")
@@ -239,7 +239,7 @@ async def refresh_token(
     "/logout",
     summary="Revoke a refresh token",
     response_model=SuccessEnvelope[None],
-    dependencies=[Depends(rate_limit("ip", "30/min"))],
+    dependencies=[Depends(rate_limit("auth", "5/min"))],
     responses={**DEFAULT_RESPONSES, **RESPONSES_UNAUTHORIZED},
 )
 @log_inbound_request(service_name="auth_api")
