@@ -101,8 +101,11 @@ class AsyncAPIClient:
             data: Form-encoded body (mutually exclusive with ``json``).
             json: JSON-serialised body.
             timeout: Total request timeout in seconds.
-            check_ssrf: When ``True``, run :func:`assert_public_url` before
-                dispatch; disable only for tests that hit localhost mocks.
+            check_ssrf: When ``True``, run :func:`resolve_and_validate`
+                + :func:`assert_allowed_url` and pin the resolved IP set
+                via :data:`pinned_dns` before dispatch (closes the
+                DNS-rebinding TOCTOU). Disable only for tests that hit
+                localhost mocks.
 
         Returns:
             Parsed JSON body when ``Content-Type`` is ``application/json``;
