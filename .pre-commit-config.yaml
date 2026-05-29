@@ -42,6 +42,25 @@ repos:
         files: ^requirements/(base|dev)\.in$
         pass_filenames: false
 
+      - id: pip-compile-base-lock
+        name: pip-compile (base.in -> base.lock.txt, hash-pinned)
+        entry: pip-compile --quiet --generate-hashes --output-file=requirements/base.lock.txt requirements/base.in
+        language: python
+        additional_dependencies: ["pip-tools==7.5.3"]
+        files: ^requirements/base\.in$
+        pass_filenames: false
+
+      # Audit hash-pinned production deps for known CVEs. Manual stage —
+      # too slow for per-commit. Run weekly via:
+      #   pre-commit run --hook-stage manual pip-audit
+      - id: pip-audit
+        name: pip-audit (CVE scan of base.lock.txt)
+        entry: pip-audit -r requirements/base.lock.txt --require-hashes
+        language: python
+        additional_dependencies: ["pip-audit==2.7.3"]
+        stages: [manual]
+        pass_filenames: false
+
       # Catch utility atrophy — a public symbol anywhere in src/core/
       # with no callers in the tree (see scripts/check_dead_utils.py
       # for the rules and the allowlist escape hatch). Broader than

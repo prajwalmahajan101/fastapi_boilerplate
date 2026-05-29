@@ -1,9 +1,11 @@
 # syntax=docker/dockerfile:1.6
 
 # ── Builder ───────────────────────────────────────────────────────────
-# Compiles wheels for the production deps (requirements/base.txt) with
-# the full C toolchain. Nothing from this stage ships to runtime — only
-# the precompiled wheels move forward.
+# Compiles wheels for the production deps (requirements/base.lock.txt)
+# with the full C toolchain. The hash-pinned lock file guarantees the
+# wheels we ship match what pip-compile produced from base.in.
+# Nothing from this stage ships to runtime — only the precompiled
+# wheels move forward.
 FROM python:3.12-slim AS builder
 
 ENV PIP_NO_CACHE_DIR=1 \
@@ -14,8 +16,8 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
-COPY requirements/base.txt ./requirements/base.txt
-RUN pip wheel --wheel-dir /wheels -r requirements/base.txt
+COPY requirements/base.lock.txt ./requirements/base.lock.txt
+RUN pip wheel --wheel-dir /wheels --require-hashes -r requirements/base.lock.txt
 
 
 # ── Runtime ───────────────────────────────────────────────────────────
