@@ -22,6 +22,18 @@ attaches to every response:
 `MAX_REQUEST_BODY_BYTES` (default 1 MiB) with HTTP 413, before the body is
 read into the audit log. Raise it for upload endpoints.
 
+## Health-probe topology masking
+
+`GET /healthz` and `GET /readyz` only return the per-check `checks`
+array (database / cache / throttle / breaker backend labels) when the
+request is authenticated as a user with a superuser role. Anonymous
+probes — kubelet, load balancers, anything on the public surface —
+get `{status, healthy, request_id}` alone, so an attacker who can hit
+the URL cannot enumerate the dependency topology. Wired by
+`_is_superuser` in `src/api/health.py`; masking lives in `_envelope`
+in `src/core/lifecycle/healthcheck.py`. See
+[`observability.md`](observability.md) for the response shape.
+
 ## CORS
 
 Off by default (`CORS_ENABLED=false`) — appropriate for a server-to-server

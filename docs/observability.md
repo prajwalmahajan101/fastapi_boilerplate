@@ -56,6 +56,18 @@ for `Recovery monitor: alias 'X' recovered`.
   `is_healthy()` and the audit backend. A 503 here means **degraded
   but serving**; load balancers can drain the pod.
 
+### Response shape
+
+Both probes return `{status, healthy, request_id}` to every caller.
+The per-check `checks` array — which enumerates the database, cache,
+throttle, and breaker backends along with their backend labels — is
+**only** returned when the request is authenticated as a user with a
+superuser role (`Role.is_superuser_role`). Anonymous probes (kubelet,
+load balancers) get the masked body so the dependency topology is not
+leaked to anyone who can hit the URL. The predicate that gates this
+is `_is_superuser` in `src/api/health.py`; the masking lives in
+`_envelope` (`src/core/lifecycle/healthcheck.py`).
+
 ## Quick "where do I look?"
 
 | Symptom | Where to look |

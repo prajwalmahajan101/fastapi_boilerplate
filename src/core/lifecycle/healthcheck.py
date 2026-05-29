@@ -15,7 +15,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
 from src.core.context import get_request_id
@@ -36,28 +36,58 @@ class HealthCheckResult:
 Check = Callable[[], Awaitable[HealthCheckResult]]
 
 
+PrivilegeDep = Callable[..., Awaitable[bool]]
+
+
+async def _default_privileged() -> bool:
+    """Default privilege resolver — treats every caller as privileged.
+
+    Preserves back-compat for callers that build routers without wiring
+    an auth-aware predicate. ``src/api/health.py`` overrides this with
+    a dependency that returns ``True`` only for superuser sessions, so
+    unauthenticated probes get the masked body.
+
+    Returns:
+        ``True`` — full envelope is returned.
+    """
+    return True
+
+
 def _envelope(
-    *, status: str, healthy: bool, checks: list[HealthCheckResult]
+    *,
+    status: str,
+    healthy: bool,
+    checks: list[HealthCheckResult],
+    privileged: bool,
 ) -> dict[str, Any]:
     """Compose the JSON body returned by every health / readiness probe.
+
+    When ``privileged`` is ``False`` the per-check ``checks`` list is
+    omitted entirely so unauthenticated callers cannot enumerate the
+    process's dependency topology. ``status`` / ``healthy`` /
+    ``request_id`` are always returned.
 
     Args:
         status: Short human-readable label
             (``"healthy"`` / ``"ready"`` / their unhealthy counterparts).
         healthy: Whether every check passed.
-        checks: Individual results to enumerate in the body.
+        checks: Individual results — surfaced only when *privileged*.
+        privileged: Whether the caller should see per-check detail.
 
     Returns:
-        Dict with ``status``, ``healthy``, ``checks``, ``request_id``.
+        Dict with ``status``, ``healthy``, ``request_id``, and — when
+        *privileged* — ``checks``.
     """
-    return {
+    body: dict[str, Any] = {
         "status": status,
         "healthy": healthy,
-        "checks": [
-            {"name": c.name, "healthy": c.healthy, "detail": c.detail} for c in checks
-        ],
         "request_id": get_request_id(),
     }
+    if privileged:
+        body["checks"] = [
+            {"name": c.name, "healthy": c.healthy, "detail": c.detail} for c in checks
+        ]
+    return body
 
 
 def create_health_router(
@@ -66,6 +96,7 @@ def create_health_router(
     healthy_status: str = "healthy",
     unhealthy_status: str = "unhealthy",
     path: str = "/health",
+    privileged_dependency: PrivilegeDep | None = None,
 ) -> APIRouter:
     """Build a router exposing ``path`` — 200 when every check passes, 503 otherwise.
 
@@ -75,16 +106,27 @@ def create_health_router(
         healthy_status: ``status`` label when every check passes.
         unhealthy_status: ``status`` label when any check fails.
         path: URL path the probe is mounted at.
+        privileged_dependency: Async FastAPI dependency returning
+            ``True`` when the caller should see per-check detail. The
+            default treats every caller as privileged so existing
+            callers see no behavior change; ``src/api/health.py`` wires
+            in a superuser-only predicate so anonymous probes get the
+            masked body.
 
     Returns:
         A ``FastAPI.APIRouter`` ready to be included on the app.
     """
     router = APIRouter()
     check_callables = checks or []
+    privilege_dep: PrivilegeDep = privileged_dependency or _default_privileged
 
     @router.get(path, include_in_schema=True)
-    async def _health() -> JSONResponse:
+    async def _health(privileged: bool = Depends(privilege_dep)) -> JSONResponse:
         """Run every configured check and return the aggregated probe response.
+
+        Args:
+            privileged: Resolved by ``privileged_dependency``; gates the
+                per-check ``checks`` array in the response body.
 
         Returns:
             ``JSONResponse`` with status 200 / 503 and the envelope body.
@@ -106,7 +148,12 @@ def create_health_router(
         status_text = healthy_status if healthy else unhealthy_status
         return JSONResponse(
             status_code=200 if healthy else 503,
-            content=_envelope(status=status_text, healthy=healthy, checks=results),
+            content=_envelope(
+                status=status_text,
+                healthy=healthy,
+                checks=results,
+                privileged=privileged,
+            ),
         )
 
     return router
@@ -116,12 +163,15 @@ def create_readiness_router(
     *,
     checks: list[Check] | None = None,
     path: str = "/readiness",
+    privileged_dependency: PrivilegeDep | None = None,
 ) -> APIRouter:
     """Build a readiness router — same shape as :func:`create_health_router`.
 
     Args:
         checks: Async probe callables.
         path: URL path the probe is mounted at.
+        privileged_dependency: Async FastAPI dependency gating the
+            per-check ``checks`` array. See :func:`create_health_router`.
 
     Returns:
         ``APIRouter`` with status labels ``"ready"`` / ``"not_ready"``.
@@ -131,6 +181,7 @@ def create_readiness_router(
         healthy_status="ready",
         unhealthy_status="not_ready",
         path=path,
+        privileged_dependency=privileged_dependency,
     )
 
 

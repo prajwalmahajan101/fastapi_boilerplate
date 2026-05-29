@@ -13,8 +13,11 @@ Both call the same probe (``db_check`` over the shared application engine).
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from typing import Any
 
+from fastapi import APIRouter, Depends
+
+from src.auth import current_user_optional
 from src.core.lifecycle.healthcheck import (
     breaker_check,
     cache_check,
@@ -23,6 +26,27 @@ from src.core.lifecycle.healthcheck import (
     db_check,
     throttle_check,
 )
+
+
+async def _is_superuser(
+    user: Any | None = Depends(current_user_optional),
+) -> bool:
+    """Resolve whether the probe caller holds a superuser role.
+
+    Returns ``False`` for anonymous probes, expired/invalid credentials,
+    and authenticated non-superuser users — the per-check ``checks``
+    array stays hidden in those cases. Only a request bound to a user
+    with ``has_superuser_role`` sees the full body. Mirrors Django's
+    ``_is_privileged`` predicate in ``apps/core/views.py``.
+
+    Args:
+        user: Resolved by ``current_user_optional``; ``None`` when no
+            enabled provider saw credentials of its kind.
+
+    Returns:
+        ``True`` only for superuser-role holders.
+    """
+    return bool(user is not None and getattr(user, "has_superuser_role", False))
 
 
 def build_root_health_router() -> APIRouter:
@@ -42,7 +66,11 @@ def build_root_health_router() -> APIRouter:
     Returns:
         ``APIRouter`` combining the two root-level probe routes.
     """
-    health = create_health_router(checks=[db_check], path="/healthz")
+    health = create_health_router(
+        checks=[db_check],
+        path="/healthz",
+        privileged_dependency=_is_superuser,
+    )
     ready = create_readiness_router(
         checks=[
             db_check,
@@ -51,6 +79,7 @@ def build_root_health_router() -> APIRouter:
             breaker_check(),
         ],
         path="/readyz",
+        privileged_dependency=_is_superuser,
     )
     combined = APIRouter()
     combined.include_router(health)
@@ -69,7 +98,11 @@ def build_api_health_router() -> APIRouter:
     Returns:
         ``APIRouter`` combining the two API-scoped probe routes.
     """
-    health = create_health_router(checks=[db_check], path="/health")
+    health = create_health_router(
+        checks=[db_check],
+        path="/health",
+        privileged_dependency=_is_superuser,
+    )
     ready = create_readiness_router(
         checks=[
             db_check,
@@ -78,6 +111,7 @@ def build_api_health_router() -> APIRouter:
             breaker_check(),
         ],
         path="/readiness",
+        privileged_dependency=_is_superuser,
     )
     combined = APIRouter()
     combined.include_router(health)
