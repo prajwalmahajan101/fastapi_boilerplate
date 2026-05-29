@@ -54,7 +54,13 @@ SEARCH_ROOTS = [ROOT / "src", ROOT / "scripts"]
 # repo (re-exported by ``src/core/__init__.py``). Listed by dotted
 # module path + symbol name so a typo doesn't accidentally exempt the
 # wrong file.
-ALLOWLIST: set[tuple[str, str]] = set()
+ALLOWLIST: set[tuple[str, str]] = {
+    # Documented log-and-swallow helper for best-effort fan-out writes.
+    # The example Item domain has no such writes, so no in-repo caller
+    # exists; downstream projects pick this up for audit / tracking
+    # rollups that must never fail the operation that preceded them.
+    ("src.core.db.best_effort", "best_effort_atomic"),
+}
 
 
 def _module_dotted(path: Path) -> str:
