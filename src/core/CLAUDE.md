@@ -49,6 +49,13 @@ into a mechanical gate.
   fails the commit. Either wire it in, allow-list it with a comment
   explaining why (see `best_effort_atomic` for the template), or make
   it private.
+- **Lazy `from src…` import inside a closure** to "hide" the dep
+  from the layering check — the AST walk in `scripts/check_layering.py`
+  descends into function bodies, so a function-local forbidden import
+  is caught exactly like a top-level one. If you genuinely need a lazy
+  import (avoiding eager construction of an optional dep, breaking a
+  real circular import), keep it lazy but make the reason explicit in
+  a one-line comment.
 - **A new exception family without registration** — see
   [ADR-0002](../../docs/decisions/0002-exception-http-registry.md).
   The ordering test catches you before CI does.

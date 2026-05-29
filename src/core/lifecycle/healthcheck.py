@@ -18,8 +18,25 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
+from sqlalchemy import text
+
 from src.core.context import get_request_id
+from src.core.resilience.cache.provider import (
+    get_cache,
+    reset_backend as cache_reset_backend,
+)
+from src.core.resilience.circuit_breaker.provider import (
+    get_registry,
+    reset_backend as breaker_reset_backend,
+)
+from src.core.resilience.throttle.provider import (
+    get_throttle,
+    reset_backend as throttle_reset_backend,
+)
+from src.core.runtime import get_settings
+from src.core.utils.db import get_app_engine
 from src.core.utils.logging import get_logger
+from src.core.utils.redis import get_redis_client
 
 logger = get_logger(__name__)
 
@@ -196,10 +213,6 @@ async def db_check() -> HealthCheckResult:
         outcome (the error is folded into ``detail`` on failure).
     """
     try:
-        from sqlalchemy import text
-
-        from src.core.utils.db import get_app_engine
-
         engine = await get_app_engine()
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
@@ -227,8 +240,6 @@ async def _redis_alive(alias: str) -> bool:
         ``True`` on ``PING`` success; ``False`` on any failure.
     """
     try:
-        from src.core.utils.redis import get_redis_client
-
         client = await get_redis_client(alias)
         await client.ping()
         return True
@@ -265,8 +276,6 @@ def cache_check(alias: str = "default") -> Check:
             outcome; the backend label is exposed via ``detail``.
         """
         try:
-            from src.core.resilience.cache.provider import get_cache, reset_backend
-
             cache = await get_cache(alias)
             if cache.backend_name == "memory" and await _redis_alive(alias):
                 logger.info(
@@ -274,7 +283,7 @@ def cache_check(alias: str = "default") -> Check:
                     "rebuilding backend.",
                     alias,
                 )
-                await reset_backend(alias)
+                await cache_reset_backend(alias)
                 cache = await get_cache(alias)
             healthy = await cache.is_healthy()
             return HealthCheckResult(
@@ -316,12 +325,6 @@ def throttle_check() -> Check:
             the backend label is exposed via ``detail``.
         """
         try:
-            from src.core.resilience.throttle.provider import (
-                get_throttle,
-                reset_backend,
-            )
-            from src.core.runtime import get_settings
-
             throttle = await get_throttle()
             if throttle.backend_name == "memory":
                 alias = get_settings().rate_limit_redis_alias
@@ -330,7 +333,7 @@ def throttle_check() -> Check:
                         "Throttle boot-fallback recovered (readyz probe); "
                         "rebuilding backend."
                     )
-                    await reset_backend()
+                    await throttle_reset_backend()
                     throttle = await get_throttle()
             healthy = await throttle.is_healthy()
             return HealthCheckResult(
@@ -374,12 +377,6 @@ def breaker_check() -> Check:
             the backend label is exposed via ``detail``.
         """
         try:
-            from src.core.resilience.circuit_breaker.provider import (
-                get_registry,
-                reset_backend,
-            )
-            from src.core.runtime import get_settings
-
             registry = await get_registry()
             if registry.backend_name == "memory":
                 alias = get_settings().circuit_breaker_redis_alias
@@ -388,7 +385,7 @@ def breaker_check() -> Check:
                         "Breaker boot-fallback recovered (readyz probe); "
                         "rebuilding backend."
                     )
-                    await reset_backend()
+                    await breaker_reset_backend()
                     registry = await get_registry()
             healthy = await registry.is_healthy()
             return HealthCheckResult(
