@@ -20,6 +20,7 @@ spin up those services and enter the lifespan explicitly.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -29,6 +30,35 @@ from src.common.settings import settings
 from src.core.runtime import configure
 from src.core.runtime import reset as reset_runtime
 from src.core.testing.reset import reset_all_singletons
+
+_TIER_MARKERS = ("unit", "integration", "e2e")
+
+
+def pytest_collection_modifyitems(
+    config: pytest.Config, items: list[pytest.Item]
+) -> None:
+    """Auto-tag each collected test with its tier marker by directory.
+
+    A test under ``tests/<tier>/...`` gets ``@pytest.mark.<tier>`` so
+    contributors can subset with ``pytest -m unit`` / ``-m integration``
+    / ``-m e2e`` without remembering to decorate each module.
+
+    Args:
+        config: The active pytest configuration (unused).
+        items: The collected test items, mutated in place.
+    """
+    del config
+    tests_root = Path(__file__).resolve().parent
+    for item in items:
+        try:
+            rel = Path(str(item.fspath)).resolve().relative_to(tests_root)
+        except ValueError:
+            continue
+        if not rel.parts:
+            continue
+        tier = rel.parts[0]
+        if tier in _TIER_MARKERS:
+            item.add_marker(getattr(pytest.mark, tier))
 
 
 @pytest.fixture(scope="session", autouse=True)
