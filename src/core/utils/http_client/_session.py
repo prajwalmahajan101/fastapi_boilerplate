@@ -103,11 +103,24 @@ class SessionManager:
 
         async with cls._get_lock():
             if cls._session is None or cls._session.closed:
+                # Custom resolver consults the per-task DNS pin
+                # populated by AsyncAPIClient.request after the SSRF
+                # validator runs. Without this pin, aiohttp does its
+                # own getaddrinfo at dispatch time and a malicious
+                # zone could return a different (private) IP than the
+                # one the validator approved (the classic
+                # DNS-rebinding TOCTOU). The pin is per-asyncio-task
+                # so concurrent requests don't trample each other.
+                from src.core.utils.http_client._dns_pin import (  # noqa: PLC0415
+                    PinnedResolver,
+                )
+
                 cls._connector = aiohttp.TCPConnector(
                     limit=100,
                     limit_per_host=30,
                     ttl_dns_cache=300,
                     enable_cleanup_closed=True,
+                    resolver=PinnedResolver(),
                 )
                 cls._session = aiohttp.ClientSession(
                     connector=cls._connector,

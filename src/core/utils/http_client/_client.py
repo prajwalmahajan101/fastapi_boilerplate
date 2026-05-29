@@ -31,7 +31,11 @@ from src.core.utils.http_payloads import (
     summarise_body_for_audit as _summarise_body_for_audit,
 )
 from src.core.utils.logging import get_logger
-from src.core.utils.ssrf import assert_public_url
+from src.core.utils.ssrf import (
+    assert_allowed_url,
+    pinned_dns,
+    resolve_and_validate,
+)
 
 logger = get_logger(__name__)
 
@@ -112,61 +116,80 @@ class AsyncAPIClient:
                 transport-level error (DNS, SSL, connection reset).
         """
         import aiohttp
+        from urllib.parse import urlparse
 
+        pin_token = None
         if check_ssrf:
-            assert_public_url(url)
+            resolved_ips = resolve_and_validate(url)
+            assert_allowed_url(url)
+            if resolved_ips:
+                # Pin the IP set the validator approved so the custom
+                # aiohttp resolver returns the same answers at dispatch
+                # time. Without the pin, a DNS-rebinding attacker can
+                # swap a public IP for a private one between validate
+                # and dispatch (the TOCTOU Django ISSUE-028 closed).
+                host = (urlparse(url).hostname or "").lower()
+                pin_token = pinned_dns.set({host: resolved_ips})
+        else:
+            assert_allowed_url(url)
 
         timeout_cfg = aiohttp.ClientTimeout(total=timeout)
         final_headers = build_headers(auth_token, auth_type, headers)
         basic_auth = build_basic_auth(auth_token, auth_type)
 
         response_ref: dict[str, Any] = {"body": None}
-        with map_aiohttp_errors(
-            url=url,
-            method=method,
-            timeout=timeout,
-            response_body_ref=response_ref,
-        ):
-            session = await SessionManager.get_session()
-            async with session.request(
-                method=method.upper(),
+        try:
+            with map_aiohttp_errors(
                 url=url,
-                headers=final_headers,
-                params=params,
-                data=data,
-                json=json,
-                auth=basic_auth,
-                timeout=timeout_cfg,
-            ) as response:
-                content_type = response.headers.get("Content-Type", "")
-                if "application/json" in content_type:
-                    response_body: Any = await response.json()
-                else:
-                    response_body = await response.text()
-                response_ref["body"] = response_body
+                method=method,
+                timeout=timeout,
+                response_body_ref=response_ref,
+            ):
+                session = await SessionManager.get_session()
+                async with session.request(
+                    method=method.upper(),
+                    url=url,
+                    headers=final_headers,
+                    params=params,
+                    data=data,
+                    json=json,
+                    auth=basic_auth,
+                    timeout=timeout_cfg,
+                ) as response:
+                    content_type = response.headers.get("Content-Type", "")
+                    if "application/json" in content_type:
+                        response_body: Any = await response.json()
+                    else:
+                        response_body = await response.text()
+                    response_ref["body"] = response_body
 
-                outbound_response_meta_ctx.set(
-                    {
-                        "method": method.upper(),
-                        "url": url,
-                        "params": params,
-                        "request_headers": final_headers,
-                        "request_body_json": json,
-                        "request_body_data": _summarise_body_for_audit(data),
-                        "status_code": response.status,
-                        "response_headers": dict(response.headers),
-                        "response_body": response_body,
-                    }
-                )
+                    outbound_response_meta_ctx.set(
+                        {
+                            "method": method.upper(),
+                            "url": url,
+                            "params": params,
+                            "request_headers": final_headers,
+                            "request_body_json": json,
+                            "request_body_data": _summarise_body_for_audit(data),
+                            "status_code": response.status,
+                            "response_headers": dict(response.headers),
+                            "response_body": response_body,
+                        }
+                    )
 
-                raise_for_server_error(url, response.status)
-                if response.status >= 400:
-                    response.raise_for_status()
+                    raise_for_server_error(url, response.status)
+                    if response.status >= 400:
+                        response.raise_for_status()
 
-                return response_body
-        # map_aiohttp_errors always raises on the unhappy path, but mypy
-        # cannot infer that — the explicit raise keeps the return type honest.
-        raise RuntimeError("unreachable: map_aiohttp_errors must raise or return")
+                    return response_body
+            # map_aiohttp_errors always raises on the unhappy path, but mypy
+            # cannot infer that — the explicit raise keeps the return type honest.
+            raise RuntimeError(
+                "unreachable: map_aiohttp_errors must raise or return"
+            )
+        finally:
+            if pin_token is not None:
+                pinned_dns.reset(pin_token)
 
     # ── Method shortcuts ──────────────────────────────────────────────
 
