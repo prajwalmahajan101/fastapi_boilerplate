@@ -53,4 +53,33 @@ class UserRead(BaseSchema):
     roles: list[str]
 
 
-__all__ = ["APIKeyCreate", "APIKeyCreated", "APIKeyRead", "UserRead"]
+class TokenRefreshRequest(BaseSchema):
+    """Request body — exchange a refresh token for a fresh access pair."""
+
+    refresh_token: str = Field(..., min_length=1)
+
+
+class TokenLogoutRequest(BaseSchema):
+    """Request body — revoke a refresh token's ``jti`` (logout)."""
+
+    refresh_token: str = Field(..., min_length=1)
+
+
+class TokenPair(BaseSchema):
+    """Response shape — newly minted JWT access + refresh tokens."""
+
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int
+
+
+__all__ = [
+    "APIKeyCreate",
+    "APIKeyCreated",
+    "APIKeyRead",
+    "TokenLogoutRequest",
+    "TokenPair",
+    "TokenRefreshRequest",
+    "UserRead",
+]

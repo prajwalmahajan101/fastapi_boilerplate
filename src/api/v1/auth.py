@@ -37,11 +37,19 @@ from src.schema.auth import (
     APIKeyCreate,
     APIKeyCreated,
     APIKeyRead,
+    TokenLogoutRequest,
+    TokenPair,
+    TokenRefreshRequest,
     UserRead,
 )
 from src.service.auth import APIKeyService
 
 router = APIRouter()
+#: JWT-specific endpoints (refresh / logout). Mounted by
+#: ``v1/__init__.py`` only when ``"jwt"`` is in
+#: ``auth_enabled_providers`` so deployments that skip JWT do not
+#: advertise the routes in their OpenAPI surface.
+jwt_router = APIRouter()
 
 
 _AUTH_RESPONSES = {**DEFAULT_RESPONSES, **RESPONSES_UNAUTHORIZED, **RESPONSES_FORBIDDEN}
@@ -170,4 +178,105 @@ async def revoke_api_key(
     )
 
 
-__all__ = ["router"]
+# ── JWT refresh + logout ─────────────────────────────────────────────
+
+
+@jwt_router.post(
+    "/token/refresh",
+    summary="Exchange a refresh token for a new access pair",
+    response_model=SuccessEnvelope[TokenPair],
+    dependencies=[Depends(rate_limit("ip", "30/min"))],
+    responses={**DEFAULT_RESPONSES, **RESPONSES_UNAUTHORIZED},
+)
+@log_inbound_request(service_name="auth_api")
+async def refresh_token(
+    request: Request,
+    payload: TokenRefreshRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    """Validate the supplied refresh token and mint a fresh ``(access, refresh)`` pair.
+
+    The old refresh token's ``jti`` is blacklisted so it cannot be
+    replayed (refresh-token rotation). Clients should store the new
+    pair and discard the old one immediately.
+
+    Raises:
+        TokenExpiredError: Refresh token signature is valid but expired.
+        TokenInvalidError: Signature / issuer / audience / type mismatch.
+        TokenRevokedError: Refresh token's ``jti`` is already blacklisted.
+    """
+    from src.auth.jwt import (  # noqa: PLC0415
+        _REFRESH_TOKEN_TYPE,
+        _is_blacklisted,
+        _load_active_user,
+        blacklist_jti,
+        decode_token,
+        mint_token_pair,
+    )
+    from src.core.exceptions.auth import (  # noqa: PLC0415
+        AuthenticationFailedError,
+        TokenRevokedError,
+    )
+
+    claims = decode_token(payload.refresh_token, expected_type=_REFRESH_TOKEN_TYPE)
+    jti = claims.get("jti")
+    if jti and await _is_blacklisted(jti):
+        raise TokenRevokedError()
+
+    user = await _load_active_user(session, claims["sub"])
+    if user is None:
+        raise AuthenticationFailedError("User account is disabled.")
+
+    # Rotation: blacklist the old refresh-token jti before minting new
+    # tokens so a concurrent replay attempt sees the rejection.
+    if jti:
+        await blacklist_jti(jti)
+
+    return SuccessResponse(data=mint_token_pair(user.id))
+
+
+@jwt_router.post(
+    "/logout",
+    summary="Revoke a refresh token",
+    response_model=SuccessEnvelope[None],
+    dependencies=[Depends(rate_limit("ip", "30/min"))],
+    responses={**DEFAULT_RESPONSES, **RESPONSES_UNAUTHORIZED},
+)
+@log_inbound_request(service_name="auth_api")
+async def logout(
+    request: Request,
+    payload: TokenLogoutRequest,
+):
+    """Blacklist the supplied refresh token's ``jti``. Idempotent.
+
+    Returns 200 even when the token is already expired / blacklisted —
+    logout is best-effort and clients should treat success as
+    "credential gone". The corresponding access token continues to
+    work until ``jwt_access_ttl_seconds`` elapses; keep that TTL short
+    if instant revocation matters.
+    """
+    from src.auth.jwt import (  # noqa: PLC0415
+        _REFRESH_TOKEN_TYPE,
+        blacklist_jti,
+        decode_token,
+    )
+    from src.core.exceptions.auth import (  # noqa: PLC0415
+        TokenExpiredError,
+        TokenInvalidError,
+    )
+
+    try:
+        claims = decode_token(
+            payload.refresh_token, expected_type=_REFRESH_TOKEN_TYPE
+        )
+    except (TokenExpiredError, TokenInvalidError):
+        # Already unusable — treat as already-logged-out.
+        return SuccessResponse(message="Logged out.")
+
+    jti = claims.get("jti")
+    if jti:
+        await blacklist_jti(jti)
+    return SuccessResponse(message="Logged out.")
+
+
+__all__ = ["jwt_router", "router"]

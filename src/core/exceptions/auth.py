@@ -49,8 +49,37 @@ class PermissionDeniedError(BaseCustomError):
     status_code = 403
 
 
+class TokenExpiredError(AuthenticationFailedError):
+    """The supplied JWT signature is valid but ``exp`` has elapsed.
+
+    Returns 401. Distinct error_code from
+    :class:`AuthenticationFailedError` so clients can tell
+    "refresh the token" apart from "credentials wrong".
+    """
+
+    default_message = "Token has expired."
+    error_code = "TOKEN_EXPIRED"
+
+
+class TokenInvalidError(AuthenticationFailedError):
+    """The supplied JWT failed signature / issuer / audience verification."""
+
+    default_message = "Token is invalid."
+    error_code = "TOKEN_INVALID"
+
+
+class TokenRevokedError(AuthenticationFailedError):
+    """The supplied JWT's ``jti`` is blacklisted (post-logout reuse)."""
+
+    default_message = "Token has been revoked."
+    error_code = "TOKEN_REVOKED"
+
+
 __all__ = [
     "APIKeyRevokedError",
     "AuthenticationFailedError",
     "PermissionDeniedError",
+    "TokenExpiredError",
+    "TokenInvalidError",
+    "TokenRevokedError",
 ]
