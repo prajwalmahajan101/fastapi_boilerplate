@@ -15,7 +15,11 @@
   Redis-backed with an in-memory fallback, plus a `resilience_registry`.
 - `middleware/` — request-id, request/exception logging, security headers,
   body-size cap, selective CORS, rate-limit headers + `install_core_middleware`.
-- `api_log/` — fire-and-forget request/response audit (Postgres/Noop backend).
+- `api_log/` — fire-and-forget request/response audit (Postgres/Noop
+  backend). Split into `inbound` / `outbound` (decorators), `sanitizers`
+  / `error_messages` (pure helpers), and `dispatch` (bounded queue);
+  `decorators.py` is a re-export shim that keeps the historical import
+  path stable.
 - `db/` — request-scoped `get_session` dependency, the `atomic` boundary,
   and `best_effort_atomic` for log-and-swallow fan-out writes.
 - `lifecycle/` — health/readiness router builders.
