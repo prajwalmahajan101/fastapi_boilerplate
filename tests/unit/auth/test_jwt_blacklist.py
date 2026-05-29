@@ -17,7 +17,7 @@ from typing import Any
 import pytest
 
 from src.auth import jwt as jwt_module
-from src.auth.jwt import BlacklistOutcome, _check_blacklist
+from src.auth.jwt import BlacklistOutcome, check_blacklist
 
 
 class _StubCache:
@@ -54,13 +54,13 @@ def _patch_cache(monkeypatch: pytest.MonkeyPatch, cache: _StubCache) -> None:
 @pytest.mark.asyncio
 async def test_listed_when_cache_hits(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_cache(monkeypatch, _StubCache(hit=True))
-    assert await _check_blacklist("jti-1") is BlacklistOutcome.LISTED
+    assert await check_blacklist("jti-1") is BlacklistOutcome.LISTED
 
 
 @pytest.mark.asyncio
 async def test_not_listed_when_cache_misses(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_cache(monkeypatch, _StubCache(hit=False))
-    assert await _check_blacklist("jti-1") is BlacklistOutcome.NOT_LISTED
+    assert await check_blacklist("jti-1") is BlacklistOutcome.NOT_LISTED
 
 
 @pytest.mark.asyncio
@@ -79,7 +79,7 @@ async def test_unavailable_warns_and_counts_on_cache_outage(
     monkeypatch.setattr(jwt_module, "record_counter", _capture_counter)
 
     with caplog.at_level(logging.WARNING, logger="src.auth.jwt"):
-        outcome = await _check_blacklist(
+        outcome = await check_blacklist(
             "jti-abc", sub="42", token_type="refresh"
         )
 

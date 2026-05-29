@@ -125,6 +125,20 @@ most-specific check first.
   survive worker restarts; the in-memory fallback degrades the
   guarantee to per-worker only.
 
+### Public surface
+
+Routes / handlers may import these names from `src.auth.jwt`:
+
+| Name | Purpose |
+|---|---|
+| `ACCESS_TOKEN_TYPE`, `REFRESH_TOKEN_TYPE` | String discriminator carried as the `type` claim. |
+| `BlacklistOutcome` | Three-state result (`LISTED` / `NOT_LISTED` / `UNAVAILABLE`) returned by `check_blacklist`. |
+| `check_blacklist(jti, *, sub, token_type)` | Look up `jti`; emits the WARNING + counter on cache outage. |
+| `load_active_user(session, sub)` | Resolve a `sub` claim to a live `User`. |
+| `decode_token`, `mint_access_token`, `mint_refresh_token`, `mint_token_pair`, `blacklist_jti` | Lower-level primitives. |
+
+The matching underscored names (`_ACCESS_TOKEN_TYPE`, `_check_blacklist`, etc.) remain as aliases for back-compat but should not be used in new code; the static contract is enforced by `tests/unit/auth/test_public_surface.py`.
+
 ### Blacklist fail policy
 
 When the blacklist cache is unreachable, the lookup is asymmetric so

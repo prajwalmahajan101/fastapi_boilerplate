@@ -206,12 +206,12 @@ async def refresh_token(
         TokenRevokedError: Refresh token's ``jti`` is already blacklisted.
     """
     from src.auth.jwt import (  # noqa: PLC0415
-        _REFRESH_TOKEN_TYPE,
+        REFRESH_TOKEN_TYPE,
         BlacklistOutcome,
-        _check_blacklist,
-        _load_active_user,
         blacklist_jti,
+        check_blacklist,
         decode_token,
+        load_active_user,
         mint_token_pair,
     )
     from src.core.exceptions.auth import (  # noqa: PLC0415
@@ -219,20 +219,20 @@ async def refresh_token(
         TokenRevokedError,
     )
 
-    claims = decode_token(payload.refresh_token, expected_type=_REFRESH_TOKEN_TYPE)
+    claims = decode_token(payload.refresh_token, expected_type=REFRESH_TOKEN_TYPE)
     jti = claims.get("jti")
     if jti:
         # Refresh path fails *closed* on cache outage: a long-lived
         # refresh token replayed during a Redis blip would otherwise
         # mint a fresh access+refresh pair, defeating logout. The
         # blacklist lookup's WARNING + metric tells operators why.
-        outcome = await _check_blacklist(
-            jti, sub=claims.get("sub"), token_type=_REFRESH_TOKEN_TYPE
+        outcome = await check_blacklist(
+            jti, sub=claims.get("sub"), token_type=REFRESH_TOKEN_TYPE
         )
         if outcome is not BlacklistOutcome.NOT_LISTED:
             raise TokenRevokedError()
 
-    user = await _load_active_user(session, claims["sub"])
+    user = await load_active_user(session, claims["sub"])
     if user is None:
         raise AuthenticationFailedError("User account is disabled.")
 
@@ -265,7 +265,7 @@ async def logout(
     if instant revocation matters.
     """
     from src.auth.jwt import (  # noqa: PLC0415
-        _REFRESH_TOKEN_TYPE,
+        REFRESH_TOKEN_TYPE,
         blacklist_jti,
         decode_token,
     )
@@ -276,7 +276,7 @@ async def logout(
 
     try:
         claims = decode_token(
-            payload.refresh_token, expected_type=_REFRESH_TOKEN_TYPE
+            payload.refresh_token, expected_type=REFRESH_TOKEN_TYPE
         )
     except (TokenExpiredError, TokenInvalidError):
         # Already unusable — treat as already-logged-out.

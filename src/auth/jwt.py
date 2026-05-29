@@ -47,8 +47,14 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_ACCESS_TOKEN_TYPE = "access"
-_REFRESH_TOKEN_TYPE = "refresh"
+ACCESS_TOKEN_TYPE = "access"
+REFRESH_TOKEN_TYPE = "refresh"
+
+# Back-compat aliases — kept so external callers mid-migration keep
+# importing the underscored names without breaking. Prefer the
+# unprefixed names in new code.
+_ACCESS_TOKEN_TYPE = ACCESS_TOKEN_TYPE
+_REFRESH_TOKEN_TYPE = REFRESH_TOKEN_TYPE
 _BLACKLIST_PREFIX = "jwt_jti_blacklist:"
 
 
@@ -218,8 +224,8 @@ class BlacklistOutcome(enum.Enum):
     UNAVAILABLE = "unavailable"
 
 
-async def _check_blacklist(
-    jti: str, *, sub: str | None = None, token_type: str = _ACCESS_TOKEN_TYPE
+async def check_blacklist(
+    jti: str, *, sub: str | None = None, token_type: str = ACCESS_TOKEN_TYPE
 ) -> BlacklistOutcome:
     """Look up ``jti`` in the blacklist cache; return the three-state outcome.
 
@@ -276,8 +282,12 @@ async def _is_blacklisted(jti: str) -> bool:
     :func:`_check_blacklist` directly so they can fail closed on
     ``UNAVAILABLE``.
     """
-    outcome = await _check_blacklist(jti, token_type=_ACCESS_TOKEN_TYPE)
+    outcome = await check_blacklist(jti, token_type=ACCESS_TOKEN_TYPE)
     return outcome is BlacklistOutcome.LISTED
+
+
+# Back-compat alias for callers that mid-migrated to the underscore name.
+_check_blacklist = check_blacklist
 
 
 async def blacklist_jti(jti: str, *, ttl_seconds: int | None = None) -> None:
@@ -299,7 +309,7 @@ async def blacklist_jti(jti: str, *, ttl_seconds: int | None = None) -> None:
         logger.warning("JWT blacklist write failed (%s).", exc)
 
 
-async def _load_active_user(session: AsyncSession, sub: str) -> "User | None":
+async def load_active_user(session: AsyncSession, sub: str) -> "User | None":
     """Resolve a ``sub`` claim to an active ``User`` ORM row."""
     from src.model.auth import User  # noqa: PLC0415
 
@@ -310,6 +320,10 @@ async def _load_active_user(session: AsyncSession, sub: str) -> "User | None":
     stmt = select(User).where(User.id == user_id, User.is_active.is_(True)).limit(1)
     result = await session.execute(stmt)
     return result.scalar_one_or_none()
+
+
+# Back-compat alias.
+_load_active_user = load_active_user
 
 
 class JWTProvider:
@@ -333,20 +347,20 @@ class JWTProvider:
         if scheme.lower() != "bearer" or not token:
             return None
 
-        payload = decode_token(token, expected_type=_ACCESS_TOKEN_TYPE)
+        payload = decode_token(token, expected_type=ACCESS_TOKEN_TYPE)
         jti = payload.get("jti")
         if jti:
             # Access path: short-lived. UNAVAILABLE falls through to
             # allow so a Redis blip does not lock every authed call out;
-            # the metric + WARNING emitted by _check_blacklist make the
+            # the metric + WARNING emitted by check_blacklist make the
             # blip visible to operators.
-            outcome = await _check_blacklist(
-                jti, sub=payload.get("sub"), token_type=_ACCESS_TOKEN_TYPE
+            outcome = await check_blacklist(
+                jti, sub=payload.get("sub"), token_type=ACCESS_TOKEN_TYPE
             )
             if outcome is BlacklistOutcome.LISTED:
                 raise TokenRevokedError()
 
-        user = await _load_active_user(session, payload["sub"])
+        user = await load_active_user(session, payload["sub"])
         if user is None:
             raise AuthenticationFailedError("User account is disabled.")
 
@@ -363,9 +377,14 @@ _registry.register(JWTProvider())
 
 
 __all__ = [
+    "ACCESS_TOKEN_TYPE",
+    "BlacklistOutcome",
     "JWTProvider",
+    "REFRESH_TOKEN_TYPE",
     "blacklist_jti",
+    "check_blacklist",
     "decode_token",
+    "load_active_user",
     "mint_access_token",
     "mint_refresh_token",
     "mint_token_pair",
