@@ -140,6 +140,7 @@ def create_app() -> FastAPI:
         cors_allow_headers=settings.cors_allow_headers,
         cors_allow_credentials=settings.cors_allow_credentials,
         enable_security_headers=settings.security_headers_enabled,
+        enable_metrics_middleware=settings.metrics_middleware_enabled,
     )
 
     register_exception_handlers(app)

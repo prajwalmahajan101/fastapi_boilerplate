@@ -266,6 +266,14 @@ class CoreSettings(BaseSettings):
     rate_limit_headers_enabled: bool = True
     rate_limit_redis_alias: str = "default"
 
+    # ── Metrics ────────────────────────────────────────────────────────
+    # ``MetricsMiddleware`` tees per-request duration into the
+    # ``src.core.metrics`` shim. Off by default — flip on once a
+    # metrics exporter (Prometheus / OTel) is wired up. The shim
+    # itself is always importable; toggling this flag only controls
+    # whether the per-request emission happens.
+    metrics_middleware_enabled: bool = False
+
     # ── API audit log (Postgres backend uses the shared db_dsn above) ──
     api_log_backend: Literal["noop", "postgres"] = "postgres"
     api_log_capture_request_body: bool = True

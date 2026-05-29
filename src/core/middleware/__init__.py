@@ -2,6 +2,7 @@
 
 from src.core.middleware.body_limit import ContentLengthLimitMiddleware
 from src.core.middleware.exception_logging import ExceptionLoggingMiddleware
+from src.core.middleware.metrics_middleware import MetricsMiddleware
 from src.core.middleware.rate_limit_headers import RateLimitHeadersMiddleware
 from src.core.middleware.request_id import RequestIDMiddleware
 from src.core.middleware.request_logging import RequestLoggingMiddleware
@@ -11,6 +12,7 @@ from src.core.middleware.selective_cors import SelectiveCORSMiddleware
 __all__ = [
     "ContentLengthLimitMiddleware",
     "ExceptionLoggingMiddleware",
+    "MetricsMiddleware",
     "RateLimitHeadersMiddleware",
     "RequestIDMiddleware",
     "RequestLoggingMiddleware",
@@ -32,6 +34,7 @@ def install_core_middleware(
     enable_rate_limit_headers: bool = True,
     enable_security_headers: bool = True,
     enable_body_size_limit: bool = True,
+    enable_metrics_middleware: bool = False,
 ) -> None:
     """Wire core middlewares onto a FastAPI app in the correct order.
 
@@ -69,12 +72,23 @@ def install_core_middleware(
         enable_body_size_limit: When ``True`` (default), reject inbound
             requests whose body exceeds
             ``CoreSettings.max_request_body_bytes`` with HTTP 413.
+        enable_metrics_middleware: When ``True``, install
+            :class:`MetricsMiddleware` so every request emits one
+            ``http_request`` duration sample via
+            :func:`src.core.metrics.record_duration`. Off by default
+            until a metrics exporter is wired up.
     """
     # Innermost first (added last → runs first inside the stack)
     if enable_rate_limit_headers:
         app.add_middleware(RateLimitHeadersMiddleware)
     app.add_middleware(ExceptionLoggingMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
+    if enable_metrics_middleware:
+        # Sits just outside RequestLogging so the duration sample
+        # covers RequestLogging's work too. Inside RequestID so the
+        # log line emitted by ``record_duration`` carries the active
+        # request id via the contextvar.
+        app.add_middleware(MetricsMiddleware)
     app.add_middleware(RequestIDMiddleware)
     if enable_security_headers:
         app.add_middleware(SecurityHeadersMiddleware)
