@@ -29,3 +29,6 @@ aiohttp
 
 # Field-level Fernet encryption
 cryptography
+
+# Background tasks — Celery (Redis broker via the redis dep above)
+celery

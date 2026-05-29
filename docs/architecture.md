@@ -136,6 +136,36 @@ Concrete consumers (cache primers, session-token re-primers) register
 warm-up hooks via `register_warm_hook(fn)`; they fan out after **any**
 backend successfully re-attaches.
 
+## Background tasks (Celery)
+
+`src.core.tasks` wires Celery as the durable / retried / scheduled
+background task framework. The broker is the Redis URL named by
+`CoreSettings.task_redis_alias`; result storage defaults to the same
+URL and can be overridden via `CELERY_RESULT_BACKEND`. The worker
+binary is `python -m src.management.run_worker worker` (a thin wrapper
+that binds settings and configures logging before handing off to the
+Celery CLI). Domain task modules live under `src.tasks.*` and are
+autodiscovered at worker startup.
+
+Two decorators are provided:
+
+* `@register_task` — for sync tasks; thin wrapper over
+  `celery_app.task`.
+* `@async_task` — for tasks that need async repositories / cache /
+  HTTP client. Each invocation runs the coroutine in a fresh
+  `asyncio.run(...)` loop on the Celery worker thread, so the body
+  composes with the existing async layer without leaking a loop
+  across invocations.
+
+Producer side: `enqueue("task.name", *args, **kwargs)` is the one-line
+helper around `celery_app.send_task` that defaults the queue to
+`CoreSettings.task_queue_name`.
+
+`fire_and_forget` (`src.core.utils.fire_and_forget`) stays as the
+right tool for best-effort fan-out (audit, telemetry) where a dropped
+task on overflow is acceptable. Celery is the right tool when work
+must survive a worker crash.
+
 ## Startup / shutdown
 
 `src/app.py`'s lifespan: bind settings into `core.runtime` → wait briefly

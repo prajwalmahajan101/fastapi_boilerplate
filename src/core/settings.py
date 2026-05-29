@@ -266,6 +266,19 @@ class CoreSettings(BaseSettings):
     rate_limit_headers_enabled: bool = True
     rate_limit_redis_alias: str = "default"
 
+    # ── Background tasks (Celery) ──────────────────────────────────────
+    # The worker binary runs as ``celery -A src.core.tasks:celery_app
+    # worker -Q <task_queue_name>``. The producer side
+    # (``src.core.tasks.enqueue``) reads ``task_redis_alias`` and
+    # ``task_queue_name``. ``celery_result_backend`` defaults to the
+    # same Redis URL as the broker; set explicitly to swap result
+    # storage (Postgres / RPC / disable). ``task_max_tries`` becomes
+    # the Celery ``task_default_max_retries``.
+    task_redis_alias: str = "default"
+    task_queue_name: str = "default"
+    task_max_tries: int = 5
+    celery_result_backend: str | None = None
+
     # ── Metrics ────────────────────────────────────────────────────────
     # ``MetricsMiddleware`` tees per-request duration into the
     # ``src.core.metrics`` shim. Off by default — flip on once a
