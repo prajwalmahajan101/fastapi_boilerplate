@@ -18,6 +18,7 @@ from typing import Any, BinaryIO
 from urllib.parse import urlparse
 
 from src.core.exceptions.infrastructure import S3Error
+from src.core.exceptions.validation import ValidationError
 from src.core.resilience.decorators import resilient
 from src.core.runtime import get_settings
 from src.core.utils.aws import get_aws_client
@@ -39,16 +40,16 @@ def parse_s3_uri(s3_uri: str) -> tuple[str, str]:
         Tuple ``(bucket, key)`` with the leading slash stripped from key.
 
     Raises:
-        ValueError: When the scheme is not ``s3`` or either component
+        ValidationError: When the scheme is not ``s3`` or either component
             is missing.
     """
     parsed = urlparse(s3_uri)
     if parsed.scheme != "s3" or not parsed.netloc:
-        raise ValueError(f"Invalid S3 URI: {s3_uri}")
+        raise ValidationError(f"Invalid S3 URI: {s3_uri}")
     bucket = parsed.netloc
     key = parsed.path.lstrip("/")
     if not key:
-        raise ValueError(f"S3 URI missing object key: {s3_uri}")
+        raise ValidationError(f"S3 URI missing object key: {s3_uri}")
     return bucket, key
 
 
@@ -63,10 +64,10 @@ def build_s3_uri(bucket: str, key: str) -> str:
         Canonical URI string (scheme s3, host bucket, path key).
 
     Raises:
-        ValueError: When either argument is empty.
+        ValidationError: When either argument is empty.
     """
     if not bucket or not key:
-        raise ValueError(
+        raise ValidationError(
             f"Both bucket and key required (got bucket={bucket!r}, key={key!r})."
         )
     return f"s3://{bucket}/{key.lstrip('/')}"
@@ -217,7 +218,7 @@ class AsyncS3Client:
             Dict of ``{url, key, bucket, content_type}``.
 
         Raises:
-            ValueError: When neither ``bucket`` nor ``s3_default_bucket`` is set.
+            ValidationError: When neither ``bucket`` nor ``s3_default_bucket`` is set.
             _classify_boto_exc: An ``S3Error`` wrapping the boto failure.
         """
         from botocore.exceptions import BotoCoreError, ClientError
@@ -225,7 +226,7 @@ class AsyncS3Client:
         settings = get_settings()
         bucket = bucket or settings.s3_default_bucket
         if not bucket:
-            raise ValueError("No bucket provided and s3_default_bucket is unset.")
+            raise ValidationError("No bucket provided and s3_default_bucket is unset.")
         ttl = expiry or settings.s3_presigned_url_expiration
         params: dict[str, Any] = {"Bucket": bucket, "Key": key}
         if content_type:
@@ -323,7 +324,7 @@ class AsyncS3Client:
             Canonical URI string of the uploaded object.
 
         Raises:
-            ValueError: When neither ``bucket`` nor ``s3_default_bucket`` is set.
+            ValidationError: When neither ``bucket`` nor ``s3_default_bucket`` is set.
             _classify_boto_exc: An ``S3Error`` wrapping the boto failure.
         """
         from botocore.exceptions import BotoCoreError, ClientError
@@ -331,7 +332,7 @@ class AsyncS3Client:
         settings = get_settings()
         bucket = bucket or settings.s3_default_bucket
         if not bucket:
-            raise ValueError("No bucket provided and s3_default_bucket is unset.")
+            raise ValidationError("No bucket provided and s3_default_bucket is unset.")
         body = json.dumps(data, ensure_ascii=False).encode("utf-8")
         client = get_aws_client("s3")
         try:
@@ -415,7 +416,7 @@ class AsyncS3Client:
             Canonical URI string of the uploaded object.
 
         Raises:
-            ValueError: When neither ``bucket`` nor ``s3_default_bucket`` is set.
+            ValidationError: When neither ``bucket`` nor ``s3_default_bucket`` is set.
             _classify_boto_exc: An ``S3Error`` wrapping the boto failure.
         """
         from botocore.exceptions import BotoCoreError, ClientError
@@ -423,7 +424,7 @@ class AsyncS3Client:
         settings = get_settings()
         bucket = bucket or settings.s3_default_bucket
         if not bucket:
-            raise ValueError("No bucket provided and s3_default_bucket is unset.")
+            raise ValidationError("No bucket provided and s3_default_bucket is unset.")
         extra_args: dict[str, Any] = {"ContentType": content_type}
         if metadata:
             extra_args["Metadata"] = {str(k): str(v) for k, v in metadata.items()}
