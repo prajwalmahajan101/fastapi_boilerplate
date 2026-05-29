@@ -152,6 +152,16 @@ IDs (put those in the body / PR title).
 | New / changed table, column, constraint, index | [`docs/erd.md`](docs/erd.md) + Alembic revision |
 | New base class, repository/service surface, exception family | [`docs/class-diagrams.md`](docs/class-diagrams.md) |
 | Security headers, CSP, CORS, rate limits, audit log | [`docs/security.md`](docs/security.md) |
+| Auth provider added / removed / reconfigured | [`docs/authentication.md`](docs/authentication.md) |
+| New setting, profile-specific override, secret source | [`docs/configuration.md`](docs/configuration.md) |
+| Logging / metrics / request-id / audit pipeline behaviour | [`docs/observability.md`](docs/observability.md) + [`docs/audit-trail.md`](docs/audit-trail.md) |
+| Health probe / lifespan / worker topology / image | [`docs/deployment.md`](docs/deployment.md) |
+| Cache / breaker / throttle / retry tier behaviour | [`docs/resilience.md`](docs/resilience.md) |
+| Exception family + registry mapping | [`docs/exceptions.md`](docs/exceptions.md) |
+| Celery task / queue / beat | [`docs/celery-topology.md`](docs/celery-topology.md) |
+| Requirements pin / pip-audit | [`docs/dependency-management.md`](docs/dependency-management.md) |
+| Adding a new resource end-to-end | [`docs/adding-a-new-app.md`](docs/adding-a-new-app.md) |
+| Doc index page | [`docs/INDEX.md`](docs/INDEX.md) |
 
 A code change without the matching doc change is incomplete.
 
