@@ -281,6 +281,10 @@ class CoreSettings(BaseSettings):
             "proxy-authorization",
         ]
     )
+    #: Seconds the lifespan shutdown will wait for in-flight audit
+    #: writes to drain before forcing the process to exit. Bounded so a
+    #: degraded audit backend cannot hang shutdown indefinitely.
+    api_log_drain_timeout_seconds: float = 30.0
 
     @classmethod
     def settings_customise_sources(

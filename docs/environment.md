@@ -68,6 +68,7 @@ markers is preserved.
 | `api_log_max_body_size` | `int` | — | `10000` |  |
 | `api_log_ttl_days` | `int` | — | `30` |  |
 | `api_log_sensitive_headers` | `list` | — | — |  |
+| `api_log_drain_timeout_seconds` | `float` | — | `30.0` |  |
 | `app_name` | `str` | — | `'FastAPI Boilerplate'` |  |
 | `app_version` | `str` | — | `'0.1.0'` |  |
 | `cors_enabled` | `bool` | — | `False` |  |

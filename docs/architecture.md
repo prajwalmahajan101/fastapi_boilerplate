@@ -97,6 +97,13 @@ can never fail the calling request — submissions overflow the queue
 with a single warning, and `persist_log` swallows repository errors
 after logging them.
 
+`ApiLog.duration_ms` is a `float` with sub-millisecond precision; fast
+handlers (cache-hit reads, 304 paths, in-memory fallbacks) routinely
+land in the 0.1–1 ms range, and dashboards or alerts that consume the
+column should not truncate to int. See
+[ADR-0001](decisions/0001-fire-and-forget-audit-pipeline.md) for the
+fire-and-forget design rationale.
+
 ## Resilience layer
 
 `src.core.resilience` provides circuit breaker, retry, cache, and
@@ -110,5 +117,44 @@ with `rate_limit(...)` dependencies.
 
 `src/app.py`'s lifespan: bind settings into `core.runtime` → wait briefly
 for Redis → build the shared DB engine → start the api_log backend. Shutdown
-reverses it, drains fire-and-forget log tasks, and disposes pools. Adding a
-resource never requires touching this file.
+reverses it, drains fire-and-forget log tasks (bounded by
+`api_log_drain_timeout_seconds`, default 30s, so a degraded audit backend
+cannot hang shutdown), and disposes pools. Adding a resource never
+requires touching this file.
+
+## Scaling
+
+The boilerplate is designed for horizontal scaling out of the box.
+Operate it with these assumptions:
+
+- **Stateless app processes.** No in-process session state. Run any
+  number of workers (uvicorn `--workers N` or N pods) behind a load
+  balancer; requests can land on any process.
+- **Redis as shared state.** Circuit-breaker state, rate-limit
+  buckets, and cache entries are stored in Redis so the limits hold
+  across the fleet. The in-memory fallback (used when Redis is
+  unreachable) is per-process — fleet-wide consistency degrades to
+  per-worker until Redis recovers.
+- **Postgres pool sizing.** Each worker owns one engine /
+  `AsyncEngine` instance; the pool size + worker count must not
+  exceed Postgres `max_connections - reserved_connections`. Rule of
+  thumb: `pool_size + max_overflow` ≈ `max_connections / workers`,
+  leave 10 connections headroom for admin sessions.
+- **Audit-log back-pressure.** The bounded `FireAndForgetQueue`
+  (`max_pending=2000` per queue) drops new submissions with a single
+  warning per overflow event when saturated. Monitor the warning
+  rate, not the audit-row count — under back-pressure rows are lost
+  silently from the consumer's perspective. Raise `max_pending` if
+  the audit backend can absorb more, or shed load on the producer
+  side first.
+- **High availability.** Redis should sit behind Sentinel or run as a
+  cluster so the single-node fallback only kicks in during real
+  failures. Postgres should have a synchronous replica + failover
+  configured; the app reconnects automatically when the engine pool
+  invalidates.
+
+`scripts/profile_audit_path.py` records the per-call overhead of
+`capture_and_dispatch` against a no-op repository — re-run it after
+touching anything under `src/core/api_log/` to catch regressions. The
+2026-05-29 baseline is `p99 = 5.9 µs`; the script fails with exit 1
+when p99 exceeds the configurable bound (default 5 ms).

@@ -84,7 +84,7 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         await close_repository()
-        await drain_all(5.0)
+        await drain_all(settings.api_log_drain_timeout_seconds)
         await AsyncAPIClient.close_session()
         await close_all_redis_clients()
         await close_db_engine()
