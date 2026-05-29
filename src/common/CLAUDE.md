@@ -17,4 +17,24 @@
 
 `src.common` **may** import from `src.core`. `src.core` must **never**
 import from `src.common` — core reads config via `core.runtime`, into which
-`app.py` injects the concrete `settings` at startup.
+`app.py` injects the concrete `settings` at startup. The reverse direction
+is mechanically enforced by `scripts/check_layering.py` (pre-commit).
+
+## Common pitfalls
+
+- **Defining a new setting only in `Settings` without updating
+  `docs/environment.md`** — `scripts/dump_settings_schema.py --check`
+  fails CI. Run `python scripts/dump_settings_schema.py --write` to
+  regenerate the matrix before committing.
+- **Importing settings inside `src.core`** — use
+  `core.runtime.get_settings()`; the runtime indirection is what
+  preserves the one-rule layering invariant.
+- **A new enum that duplicates a core enum** — check `src.core.enums`
+  first; the convenience re-exports in `enums.py` are explicit.
+- **Hand-editing the auto block in `docs/environment.md`** — won't
+  survive the next `--write`. Put hand-written prose around the markers.
+
+## Reference examples
+
+- Subclassing `CoreSettings`: `src/common/settings.py`.
+- OpenAPI response dict definition + composition: `src/common/openapi_metadata.py`.

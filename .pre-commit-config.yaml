@@ -93,3 +93,14 @@ repos:
         files: ^src/api/.*\.py$
         pass_filenames: false
         stages: [manual]
+
+      # Settings → env-matrix doc drift guard. Runs in manual stage
+      # because it needs the full app deps importable (fastapi /
+      # sqlalchemy); CI / docs builds exercise it before publishing.
+      - id: check-settings-schema
+        name: check docs/environment.md matches Settings
+        entry: python scripts/dump_settings_schema.py --check
+        language: system
+        files: ^(src/common/settings\.py|src/core/settings\.py|docs/environment\.md)$
+        pass_filenames: false
+        stages: [manual]

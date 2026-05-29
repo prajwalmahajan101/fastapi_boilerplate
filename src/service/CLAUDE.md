@@ -16,3 +16,25 @@
   central handler maps them to HTTP status.
 
 `item_service.py` is an example.
+
+## Common pitfalls
+
+- **Opening transactions inside a service** — the route is the unit-of-
+  work boundary. Multi-step writes inside the same `atomic()` block run
+  together; the service exposes the steps as individual methods.
+- **Catching `BaseCustomError` to translate it** — don't. The central
+  exception handler maps every registered family to its HTTP status
+  ([ADR-0002](../../docs/decisions/0002-exception-http-registry.md)).
+  Let it propagate.
+- **Whitelisting `allowed_filter_fields` ad-hoc** — declare it as a
+  class attribute on the service so the listing surface is auditable in
+  one place. Forgetting it means *every* column becomes filterable.
+- **Calling other services directly across aggregate roots** — favour
+  shared repositories or domain events. Direct cross-service calls
+  hide ownership boundaries and make refactors painful.
+
+## Reference example
+
+`src/service/item_service.py` — `BaseNamedModelService[Item]` with a
+`pre_create` hook normalising the business code. Use the same shape
+for new aggregates.

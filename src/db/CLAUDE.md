@@ -11,3 +11,20 @@
   they flow through here automatically.
 
 No ORM models live in this package — models belong in `src/model`.
+
+## Common pitfalls
+
+- **Opening a second engine in a CLI / management script** — call
+  `core.utils.db.get_app_engine()` instead; the DSN-keyed cache hands
+  back the same pool the request path uses.
+- **Forgetting to re-export a new model from `src/model/__init__.py`**
+  — `src/db/tables.py` only sees what `src.model` exports, so a model
+  added but not exported is invisible to Alembic autogenerate.
+- **Closing the engine inside a request handler** — that would tear
+  the pool out from under every other in-flight request. Engine
+  lifecycle belongs to `src/app.py`'s lifespan, never to a handler.
+
+## Reference example
+
+`src/db/lifecycle.py` is the canonical "open / close one engine across
+the whole app" wiring. Mirror it for any future per-DSN engine.

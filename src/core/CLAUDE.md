@@ -36,3 +36,30 @@ core liftable into the next project unchanged.
 
 `scripts/check_dead_utils.py` (pre-commit) flags any public symbol under
 `src/core/` with no callers — keep the surface tight.
+`scripts/check_layering.py` (pre-commit) AST-walks `src/core/` and fails
+on any import of `src.common` or a domain package — the one-rule turned
+into a mechanical gate.
+
+## Common pitfalls
+
+- **Importing from `src.common` "just for an enum"** — pull the enum
+  down into `core.enums` (or pass it through `core.runtime`) instead.
+  The dead-utils + layering hooks will catch you.
+- **Adding a new public symbol without a caller** — `check_dead_utils.py`
+  fails the commit. Either wire it in, allow-list it with a comment
+  explaining why (see `best_effort_atomic` for the template), or make
+  it private.
+- **A new exception family without registration** — see
+  [ADR-0002](../../docs/decisions/0002-exception-http-registry.md).
+  The ordering test catches you before CI does.
+- **Touching the audit pipeline** — read
+  [ADR-0001](../../docs/decisions/0001-fire-and-forget-audit-pipeline.md)
+  first; the fire-and-forget contract is load-bearing.
+
+## Reference examples in this repo
+
+- Cross-cutting helper added with proper documentation:
+  `src/core/utils/timing.py`.
+- Optional-dep guarded import: `src/core/utils/http_payloads.py`.
+- Allow-listed downstream-only helper: `src/core/db/best_effort.py`
+  (see `scripts/check_dead_utils.py`'s `ALLOWLIST`).
