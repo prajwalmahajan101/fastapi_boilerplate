@@ -27,12 +27,14 @@ from src.core.exceptions.infrastructure import (
     DecryptionError,
     ExternalServiceError,
     ExternalTimeoutError,
+    InfrastructureError,
     S3Error,
     SESError,
     ServiceUnavailableError,
     UpstreamPushError,
 )
-from src.core.exceptions.repository import EntityNotFoundError
+from src.core.exceptions.rate_limit import RateLimitError
+from src.core.exceptions.repository import EntityNotFoundError, RepositoryError
 from src.core.exceptions.validation import ValidationError
 from src.core.responses.envelope import ErrorResponse
 
@@ -87,10 +89,12 @@ async def custom_error_handler(request: Request, exc: Exception) -> JSONResponse
             status_code = code
             break
 
+    headers = exc.response_headers() if isinstance(exc, RateLimitError) else None
     return ErrorResponse(
         message=exc.message,
         errors=[exc.to_error_dict()],
         status_code=status_code,
+        headers=headers,
         request_id=exc.request_id or get_request_id(),
     )
 
@@ -179,3 +183,11 @@ register_exception_mapping(
     ExternalServiceError, status.HTTP_502_BAD_GATEWAY
 )  # parent — register last
 register_exception_mapping(DecryptionError, status.HTTP_500_INTERNAL_SERVER_ERROR)
+register_exception_mapping(RateLimitError, status.HTTP_429_TOO_MANY_REQUESTS)
+# Defensive parent fallbacks — registered last so they only catch
+# subclasses added later without their own explicit mapping. Both
+# resolve to 500 (matching the class attr); the value of registering
+# them is making the fallback explicit instead of relying on the
+# class-attr branch in custom_error_handler.
+register_exception_mapping(RepositoryError, status.HTTP_500_INTERNAL_SERVER_ERROR)
+register_exception_mapping(InfrastructureError, status.HTTP_500_INTERNAL_SERVER_ERROR)

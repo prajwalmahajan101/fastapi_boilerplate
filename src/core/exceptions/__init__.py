@@ -29,6 +29,7 @@ from src.core.exceptions.infrastructure import (
     TransientError,
     UpstreamPushError,
 )
+from src.core.exceptions.rate_limit import RateLimitError
 from src.core.exceptions.repository import (
     EntityNotFoundError,
     RepositoryError,
@@ -43,6 +44,7 @@ __all__ = [
     "ExternalServiceError",
     "ExternalTimeoutError",
     "InfrastructureError",
+    "RateLimitError",
     "RepositoryError",
     "S3Error",
     "SESError",
