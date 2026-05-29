@@ -36,7 +36,7 @@ from src.core.exceptions.auth import AuthenticationFailedError
 from src.core.resilience.throttle import rate_limit
 from src.core.responses import SuccessEnvelope, SuccessResponse
 from src.core.runtime import get_settings
-from src.repository.auth import UserRepository
+from src.repository.auth import RoleRepository, UserRepository
 from src.schema.auth import TokenPair
 
 if TYPE_CHECKING:
@@ -133,10 +133,40 @@ async def _upsert_user(
         )
         session.add(user)
         await session.flush()
+        await _attach_default_roles(session, user)
         logger.info("OAuth: created user id=%s for %s", user.id, email)
     elif not user.is_active:
         raise AuthenticationFailedError("User account is disabled.")
     return user
+
+
+async def _attach_default_roles(session: AsyncSession, user: "User") -> None:
+    """Attach every ``Role.is_default`` role to a freshly-created user.
+
+    Runs inside the same outer transaction as the user insert (the
+    callback wraps both in ``atomic(session)``), so a role-attach
+    failure rolls the user back — a partially-provisioned account can
+    never be observed. Mirrors Django's
+    ``CustomAccountAdapter.save_user`` / ``assign_default_roles`` path.
+
+    Args:
+        session: The active async session inside the OAuth transaction.
+        user: The freshly-inserted user row (post-``flush``).
+
+    Returns:
+        ``None``.
+    """
+    roles = await RoleRepository(session).get_default_roles()
+    if not roles:
+        logger.warning(
+            "OAuth: no Role.is_default configured — user id=%s created "
+            "without RBAC roles; every RequireResource endpoint will 403 "
+            "until an operator attaches a role.",
+            user.id,
+        )
+        return
+    user.roles.extend(roles)
+    await session.flush()
 
 
 class GoogleOAuthProvider:

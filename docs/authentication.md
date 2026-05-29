@@ -70,6 +70,26 @@ Routes mounted only when `"oauth_google"` is enabled:
 
 Optional hosted-domain allow-list: `google_oauth_allowed_domains`.
 
+#### Default roles on first sign-in
+
+A brand-new OAuth user is auto-attached to every `Role` row flagged
+`is_default=True` inside the same transaction as the user insert (so a
+role-attach failure rolls the user back — a partially-provisioned
+account is never observable). Returning users are left alone; this
+fires only on first sign-in.
+
+Seed at least one default role in your bootstrap migration or seed
+script, e.g.:
+
+```python
+session.add(Role(name="user", description="Default user role", is_default=True))
+```
+
+When no `is_default` row exists, the callback logs a warning and the
+user lands with empty `roles` — every `RequireResource(...)` route will
+return 403 until an operator attaches a role manually. The
+warning to grep for: `OAuth: no Role.is_default configured`.
+
 ## Picking a combination
 
 ```dotenv

@@ -15,7 +15,29 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.base.repository import BaseRepository
-from src.model.auth import APIKey, User
+from src.model.auth import APIKey, Role, User
+
+
+class RoleRepository(BaseRepository[Role]):
+    """Async repository for the ``Role`` model."""
+
+    model = Role
+
+    async def get_default_roles(self) -> list[Role]:
+        """Return every role flagged ``is_default=True``.
+
+        Consumed by the OAuth callback to attach a baseline RBAC role
+        to brand-new users so they don't land without any permissions.
+        Operators flip ``Role.is_default`` to enrol a role in the
+        first-sign-in bundle; an empty list means no default is
+        configured and the OAuth flow logs a warning.
+
+        Returns:
+            Roles where ``is_default`` is ``True``, in insertion order.
+        """
+        stmt = select(Role).where(Role.is_default.is_(True)).order_by(Role.id)
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
 
 
 class UserRepository(BaseRepository[User]):
@@ -71,7 +93,7 @@ class APIKeyRepository(BaseRepository[APIKey]):
         return result.scalar_one_or_none()
 
 
-__all__ = ["APIKeyRepository", "UserRepository"]
+__all__ = ["APIKeyRepository", "RoleRepository", "UserRepository"]
 
 
 def now_utc() -> datetime:
