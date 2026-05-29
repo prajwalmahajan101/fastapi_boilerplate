@@ -93,7 +93,11 @@ async def lifespan(app: FastAPI):
     finally:
         await recovery_monitor.stop()
         await close_repository()
-        await drain_all(settings.api_log_drain_timeout_seconds)
+        if not await drain_all(settings.api_log_drain_timeout_seconds):
+            logger.warning(
+                "Shutdown drain budget exceeded — some background "
+                "writes may not have completed before exit.",
+            )
         await AsyncAPIClient.close_session()
         await close_all_redis_clients()
         await close_db_engine()

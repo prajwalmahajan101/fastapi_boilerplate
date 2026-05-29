@@ -123,19 +123,39 @@ def register(queue: FireAndForgetQueue) -> FireAndForgetQueue:
     return queue
 
 
-async def drain_all(timeout: float = 5.0) -> None:
-    """Drain every registered queue concurrently.
+async def drain_all(timeout: float = 5.0) -> bool:
+    """Drain every registered queue within ``timeout`` as a TOTAL budget.
 
-    Wait up to ``timeout`` seconds per queue (the queues drain in
-    parallel via :func:`asyncio.gather` so the total wall-time is
-    bounded by ``timeout`` rather than ``len(_REGISTERED) * timeout``).
+    Wraps the parallel per-queue drains in an outer ``wait_for(timeout)``
+    so the shutdown path cannot exceed the caller's deadline regardless
+    of how many queues are registered. The inner per-queue drain still
+    honours the same ``timeout`` as its own ceiling, so an idle queue
+    can't get billed for a slow neighbour.
 
     Args:
-        timeout: Maximum seconds to wait per queue.
+        timeout: Total seconds to wait across every queue. Must be > 0.
+
+    Returns:
+        ``True`` when every queue drained within ``timeout``;
+        ``False`` when the budget was hit and at least one queue still
+        had in-flight tasks (the per-queue ``drain`` already logged
+        the leftover count).
     """
     if not _REGISTERED:
-        return
-    await asyncio.gather(*(q.drain(timeout) for q in _REGISTERED))
+        return True
+    try:
+        await asyncio.wait_for(
+            asyncio.gather(*(q.drain(timeout) for q in _REGISTERED)),
+            timeout=timeout,
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "fire-and-forget: drain_all hit total budget of %.2fs; "
+            "some background tasks may not have completed.",
+            timeout,
+        )
+        return False
+    return True
 
 
 def _reset_registry() -> None:
