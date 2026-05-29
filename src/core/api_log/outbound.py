@@ -117,7 +117,14 @@ def log_outbound_request(service_name: str) -> Callable[[F], F]:
                 )
 
             try:
-                return await capture_and_dispatch(func, args, kwargs, build_log)
+                return await capture_and_dispatch(
+                    func,
+                    args,
+                    kwargs,
+                    build_log,
+                    service_name=service_name,
+                    direction="outbound",
+                )
             finally:
                 outbound_response_meta_ctx.reset(token)
 

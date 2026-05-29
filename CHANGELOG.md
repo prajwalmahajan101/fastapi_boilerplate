@@ -23,5 +23,14 @@ this project does not yet publish releases, so changes are grouped under
   Soft-deleted rows are no longer returned unless callers opt in via
   `active_only=False`. The example `list_items` route drops its now-redundant
   explicit flag. (ISSUE-018)
+
+### Fixed
+
+- `capture_and_dispatch` and `persist_log` now log audit-pipeline failures
+  with `extra={"service_name", "direction", "request_id", "log_id"}`, so a
+  build- or save-side regression is correlatable to the originating call
+  from logs alone. `capture_and_dispatch` takes optional `service_name=` and
+  `direction=` kwargs for the build-fail correlation; inbound / outbound
+  decorators pass them. (ISSUE-021)
 </content>
 </invoke>

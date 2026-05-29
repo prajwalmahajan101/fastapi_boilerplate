@@ -14,6 +14,7 @@ from typing import Any
 
 from src.core.api_log.models import ApiLog
 from src.core.api_log.sanitizers import UNSET
+from src.core.context import get_request_id
 from src.core.utils.fire_and_forget import FireAndForgetQueue, register
 from src.core.utils.logging import get_logger
 from src.core.utils.timing import perf_timer
@@ -56,7 +57,15 @@ async def persist_log(log: ApiLog) -> None:
 
         await get_repository().save(log)
     except Exception:  # noqa: BLE001 — fire-and-forget audit sink: a DB / backend outage must never propagate to the producer that has already returned.
-        logger.exception("API log save failed", extra={"log_id": log.log_id})
+        logger.exception(
+            "API log save failed",
+            extra={
+                "log_id": log.log_id,
+                "service_name": log.service_name,
+                "direction": log.direction,
+                "request_id": log.request_id,
+            },
+        )
 
 
 @dataclass
@@ -92,6 +101,9 @@ async def capture_and_dispatch(
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
     build_log: Callable[[CaptureState], ApiLog],
+    *,
+    service_name: str | None = None,
+    direction: str | None = None,
 ) -> Any:
     """Run ``func`` under a timer and schedule an audit row for the call.
 
@@ -109,6 +121,13 @@ async def capture_and_dispatch(
         kwargs: Keyword arguments forwarded to ``func``.
         build_log: Per-direction closure that builds the ``ApiLog`` to
             persist from the populated :class:`CaptureState`.
+        service_name: Logical service tag for the wrapped call. Only
+            used to correlate the audit-drop log entry if ``build_log``
+            raises; never reaches the persisted row (the builder owns
+            that).
+        direction: ``"inbound"`` or ``"outbound"``. Same purpose as
+            ``service_name`` — pure correlation metadata for the rare
+            audit-drop log line.
 
     Returns:
         Whatever ``func`` returned.
@@ -133,7 +152,14 @@ async def capture_and_dispatch(
             try:
                 log = build_log(state)
             except Exception:  # noqa: BLE001 — audit must never raise into the producer.
-                logger.exception("API log build failed")
+                logger.exception(
+                    "API log build failed",
+                    extra={
+                        "service_name": service_name,
+                        "direction": direction,
+                        "request_id": get_request_id(),
+                    },
+                )
             else:
                 fire_and_forget(persist_log(log))
 

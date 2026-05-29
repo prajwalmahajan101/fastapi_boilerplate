@@ -104,7 +104,14 @@ def log_inbound_request(service_name: str) -> Callable[[F], F]:
                     exc_msg=exc_msg,
                 )
 
-            return await capture_and_dispatch(func, args, kwargs, build_log)
+            return await capture_and_dispatch(
+                func,
+                args,
+                kwargs,
+                build_log,
+                service_name=service_name,
+                direction="inbound",
+            )
 
         return wrapper  # type: ignore[return-value]
 
