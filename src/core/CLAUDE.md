@@ -16,7 +16,8 @@
 - `middleware/` — request-id, request/exception logging, security headers,
   body-size cap, selective CORS, rate-limit headers + `install_core_middleware`.
 - `api_log/` — fire-and-forget request/response audit (Postgres/Noop backend).
-- `db/` — request-scoped `get_session` dependency + the `atomic` boundary.
+- `db/` — request-scoped `get_session` dependency, the `atomic` boundary,
+  and `best_effort_atomic` for log-and-swallow fan-out writes.
 - `lifecycle/` — health/readiness router builders.
 - `utils/` — logging, crypto, HTTP client, Redis, S3/SES, SSRF guard,
   pagination, fire-and-forget queue.

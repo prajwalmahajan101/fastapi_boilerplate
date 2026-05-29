@@ -11,7 +11,8 @@ place of ``async with session.begin():`` — it tolerates the autobegun
 transaction left by the auth dependency's ``SELECT``.
 """
 
+from src.core.db.best_effort import best_effort_atomic
 from src.core.db.dependencies import get_session
 from src.core.db.transaction import atomic
 
-__all__ = ["atomic", "get_session"]
+__all__ = ["atomic", "best_effort_atomic", "get_session"]
