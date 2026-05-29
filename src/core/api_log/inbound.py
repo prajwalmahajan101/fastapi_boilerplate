@@ -12,6 +12,7 @@ from collections.abc import Callable
 from typing import Any, TypeVar
 
 from fastapi import Request
+from starlette.responses import Response
 
 from src.core.api_log.dispatch import fire_and_forget, persist_log
 from src.core.api_log.error_messages import build_error_message
@@ -72,6 +73,18 @@ def log_inbound_request(service_name: str) -> Callable[[F], F]:
                     after the audit row is queued.
             """
             request: Request | None = kwargs.get("request")
+            # Read the request body *before* invoking the handler so the
+            # fire-and-forget audit task does not race the ASGI receive
+            # channel closing after the response has shipped. Starlette
+            # caches the bytes on ``Request._body`` so the handler's own
+            # ``await request.body()`` calls remain side-effect-free.
+            req_body_raw: bytes | None = None
+            if (
+                request is not None
+                and get_settings().api_log_capture_request_body
+            ):
+                req_body_raw = await request.body()
+
             result: Any = _UNSET
             exc_type: str | None = None
             exc_msg: str | None = None
@@ -87,6 +100,7 @@ def log_inbound_request(service_name: str) -> Callable[[F], F]:
                     fire_and_forget(
                         _build_and_persist_inbound_log(
                             request=request,
+                            req_body_raw=req_body_raw,
                             service_name=service_name,
                             result=result,
                             duration_ms=float(t.elapsed_ms),
@@ -102,6 +116,7 @@ def log_inbound_request(service_name: str) -> Callable[[F], F]:
 
 async def _build_and_persist_inbound_log(
     request: Request | None,
+    req_body_raw: bytes | None,
     service_name: str,
     result: Any,
     duration_ms: float,
@@ -116,6 +131,9 @@ async def _build_and_persist_inbound_log(
     Args:
         request: The incoming ``Request`` (or ``None`` when the route
             did not declare one as a kwarg).
+        req_body_raw: Raw request bytes captured *inside the request
+            scope* by the wrapper; ``None`` when capture is disabled
+            or the request was missing.
         service_name: Logical service tag for the row.
         result: Whatever the handler returned (or ``_UNSET`` on
             failure).
@@ -123,8 +141,9 @@ async def _build_and_persist_inbound_log(
         exc_type: Class name of the raised exception, if any.
         exc_msg: Composite error message from :func:`build_error_message`.
     """
-    log = await _build_inbound_log(
+    log = _build_inbound_log(
         request=request,
+        req_body_raw=req_body_raw,
         service_name=service_name,
         result=result,
         duration_ms=duration_ms,
@@ -134,8 +153,9 @@ async def _build_and_persist_inbound_log(
     await persist_log(log)
 
 
-async def _build_inbound_log(
+def _build_inbound_log(
     request: Request | None,
+    req_body_raw: bytes | None,
     service_name: str,
     result: Any,
     duration_ms: float,
@@ -144,15 +164,17 @@ async def _build_inbound_log(
 ) -> ApiLog:
     """Materialise an inbound ``ApiLog`` from request + handler outcome.
 
-    Reads the request body when ``api_log_capture_request_body`` is
-    on (which calls ``await request.body()`` — that consumes the
-    stream but FastAPI has already cached the body by this point, so
-    handlers' own ``request.body()`` calls are unaffected).
+    Pure / synchronous: all I/O (request body read) happens in the
+    wrapper before the response ships, so this helper never awaits.
 
     Args:
         request: The incoming ``Request`` (or ``None``).
+        req_body_raw: Raw request bytes captured by the wrapper.
         service_name: Logical service tag for the row.
-        result: Whatever the handler returned.
+        result: Whatever the handler returned. When this is a Starlette
+            ``Response`` subclass the rendered ``result.body`` and
+            ``result.status_code`` are recorded; otherwise the raw
+            object is serialized and status defaults to 200 / None.
         duration_ms: Wall time spent in the handler.
         exc_type: Class name of the raised exception, if any.
         exc_msg: Composite error message from :func:`build_error_message`.
@@ -171,18 +193,30 @@ async def _build_inbound_log(
         url = str(request.url)
         query_params = dict(request.query_params) or None
         req_headers = redact_headers(dict(request.headers))
-        if settings.api_log_capture_request_body:
-            raw = await request.body()
+        if req_body_raw is not None:
             req_body = truncate(
-                raw.decode("utf-8", errors="replace") if raw else None,
+                req_body_raw.decode("utf-8", errors="replace"),
                 settings.api_log_max_body_size,
             )
 
     resp_body: str | None = None
     if settings.api_log_capture_response_body and result is not _UNSET:
-        resp_body = serialize_body(result, settings.api_log_max_body_size)
+        if isinstance(result, Response):
+            resp_body = (
+                truncate(
+                    result.body.decode("utf-8", errors="replace"),
+                    settings.api_log_max_body_size,
+                )
+                if result.body
+                else None
+            )
+        else:
+            resp_body = serialize_body(result, settings.api_log_max_body_size)
 
-    status_code = 200 if exc_type is None else None
+    if isinstance(result, Response):
+        status_code: int | None = result.status_code
+    else:
+        status_code = 200 if exc_type is None else None
 
     return ApiLog(
         direction=RequestDirection.INBOUND,
