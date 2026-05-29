@@ -160,14 +160,15 @@ def _build_inbound_log(
     resp_body: str | None = None
     if settings.api_log_capture_response_body and result is not UNSET:
         if isinstance(result, Response):
-            resp_body = (
-                truncate(
-                    result.body.decode("utf-8", errors="replace"),
+            # Only rendered Response subclasses (JSONResponse, PlainTextResponse, …)
+            # carry a usable ``.body``; StreamingResponse / FileResponse have
+            # nothing to capture synchronously, so fall through to None.
+            body_bytes = getattr(result, "body", None)
+            if isinstance(body_bytes, (bytes, bytearray)) and body_bytes:
+                resp_body = truncate(
+                    bytes(body_bytes).decode("utf-8", errors="replace"),
                     settings.api_log_max_body_size,
                 )
-                if result.body
-                else None
-            )
         else:
             resp_body = serialize_body(result, settings.api_log_max_body_size)
 

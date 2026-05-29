@@ -66,10 +66,19 @@ def log_outbound_request(service_name: str) -> Callable[[F], F]:
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
             """Run ``func`` and emit an ``api_logs`` row for the outbound call.
 
+            The wrapper forwards ``*args`` / ``**kwargs`` to ``func``
+            verbatim and threads the call through
+            :func:`capture_and_dispatch`. The per-call ``ApiLog`` row is
+            materialised by :func:`_build_outbound_log`, which decides
+            which kwargs land in the ``extra`` JSON column — see that
+            function's ``_http_keys`` filter for the rules.
+
             Args:
                 *args: Positional arguments forwarded to ``func``.
-                **kwargs: Keyword arguments — captured into the
-                    ``extra`` JSON column for diagnostic context.
+                **kwargs: Keyword arguments forwarded to ``func``;
+                    :func:`_build_outbound_log` later filters HTTP
+                    plumbing keys (method/url/headers/json/...) out
+                    before folding the remainder into ``extra``.
 
             Returns:
                 Whatever the wrapped method returned.

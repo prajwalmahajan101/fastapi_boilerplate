@@ -127,7 +127,15 @@ async def capture_and_dispatch(
             raise
         finally:
             state.elapsed_ms = float(t.elapsed_ms)
-            fire_and_forget(persist_log(build_log(state)))
+            # Mirrors persist_log's contract: a bug in build_log must
+            # never surface from the wrapper's finally and shadow the
+            # original state.exc re-raise the caller is about to see.
+            try:
+                log = build_log(state)
+            except Exception:  # noqa: BLE001 — audit must never raise into the producer.
+                logger.exception("API log build failed")
+            else:
+                fire_and_forget(persist_log(log))
 
 
 __all__ = [

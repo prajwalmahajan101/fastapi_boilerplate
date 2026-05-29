@@ -45,16 +45,18 @@ class PerfTimer:
     _end: float | None = None
 
     @property
-    def elapsed_ms(self) -> int:
+    def elapsed_ms(self) -> float:
         """Milliseconds elapsed since the block entered.
 
         Returns:
-            Integer milliseconds. While the block is open, the value
-            is the running elapsed; after it closes, it is frozen at
-            the close time.
+            Floating-point milliseconds with sub-ms precision (matters
+            for fast handlers — cache-hit reads, 304 paths, in-memory
+            fallbacks). While the block is open, the value is the
+            running elapsed; after it closes, it is frozen at the close
+            time.
         """
         end = self._end if self._end is not None else time.perf_counter()
-        return int((end - self._start) * 1000)
+        return (end - self._start) * 1000
 
     def stop(self) -> None:
         """Freeze ``elapsed_ms`` at the current monotonic instant.
