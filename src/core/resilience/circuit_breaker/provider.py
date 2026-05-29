@@ -40,23 +40,43 @@ async def get_registry() -> BaseCircuitBreakerRegistry:
 
 
 async def _create_registry() -> BaseCircuitBreakerRegistry:
-    """Build the breaker registry at first call, degrading on Redis miss.
+    """Build the breaker registry at first call.
 
-    Resolves the configured Redis alias and constructs a ``RedisRegistry``.
-    If the client cannot be built (``get_redis_client`` raises) the
-    helper logs a warning and returns an ``InMemoryRegistry`` so the
-    application boots even with Redis offline.
+    Honours ``settings.circuit_breaker_backend``:
+
+    * ``"auto"`` / ``"redis"`` — try Redis, fall back to in-memory on
+      connection failure (historical behaviour).
+    * ``"memory"`` — skip Redis entirely; return an
+      :class:`InMemoryRegistry`.
+    * ``"pybreaker"`` — build a process-local
+      :class:`PyBreakerRegistry` (third-party in-process tier).
 
     Returns:
-        The constructed registry (``RedisRegistry`` or ``InMemoryRegistry``).
+        The constructed registry.
     """
     from src.core.resilience.recovery import (
         register_boot_fallback,
         register_for_recovery,
     )
-    from src.core.utils.redis import get_redis_client
 
     settings = get_settings()
+    backend = settings.circuit_breaker_backend
+
+    if backend == "memory":
+        logger.info("Circuit breaker: in-memory registry selected.")
+        return InMemoryRegistry()
+
+    if backend == "pybreaker":
+        from src.core.resilience.circuit_breaker.pybreaker_impl import (  # noqa: PLC0415
+            PyBreakerRegistry,
+        )
+
+        logger.info("Circuit breaker: pybreaker registry selected.")
+        return PyBreakerRegistry()
+
+    # ``auto`` / ``redis`` paths — try Redis with in-memory fallback.
+    from src.core.utils.redis import get_redis_client  # noqa: PLC0415
+
     alias = settings.circuit_breaker_redis_alias
     prefix = settings.circuit_breaker_key_prefix
     recovery_alias = f"breaker:{alias}"
