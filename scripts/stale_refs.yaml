@@ -1,0 +1,32 @@
+# Stale-reference manifest for scripts/check_stale_refs.py.
+#
+# Append entries here as part of every rename / delete commit. The
+# hook fails the commit if any of these patterns shows up in docs
+# (Markdown), top-level CLAUDE.md / AGENTS.md / README.md, or in
+# source under src/, tests/, scripts/, alembic/.
+#
+# Format: each item has
+#   pattern  — POSIX extended regex passed to `re.compile`. Anchor
+#              with `\b` where the symbol is a word
+#              (e.g. `\bMODEL_RESOURCE_MAP\b`).
+#   replacement — short hint shown when the pattern matches, so the
+#                 author knows what to write instead.
+#
+# A line containing `# stale-refs: allow` is exempt — use sparingly
+# for documented historical references (deprecation shims, ADR text
+# that intentionally cites old names).
+#
+# Seeded with two structural patterns:
+#   1. Donor-project lineage drag from upstream extractions. Replace
+#      with the project-agnostic shape the boilerplate documents.
+#   2. ``MODEL_RESOURCE_MAP`` — the original Django RBAC primitive
+#      that was replaced by ``register_resource()`` in
+#      ``src.core.rbac.registry``. Catches stale doc / docstring
+#      references during the next refactor cycle.
+
+patterns:
+  - pattern: '(?i)co-lending-gateway|colend(er|ing)?|optimoloan'
+    replacement: 'Donor-project lineage from upstream extractions. Replace with project-agnostic values: `app` for cache prefixes and image names, `example.com` for example hosts / emails, and rephrase docstrings to drop the donor-project name.'
+
+  - pattern: '\bMODEL_RESOURCE_MAP\b'
+    replacement: 'MODEL_RESOURCE_MAP was removed; use `src.core.rbac.register_resource()` from a module-level call site or app factory hook.'

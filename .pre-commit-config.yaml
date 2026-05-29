@@ -73,6 +73,30 @@ repos:
         files: ^src/core/.*\.py$
         pass_filenames: false
 
+      # Doc-rot guard: refuse to commit known-stale symbol / lineage
+      # references in docs or source. Patterns + replacement hints
+      # live in scripts/stale_refs.yaml — append there in the same
+      # commit as the rename / delete that retires a name. A single
+      # offending line can opt out via `# stale-refs: allow`.
+      - id: check-stale-refs
+        name: check for stale references in docs + source
+        entry: python scripts/check_stale_refs.py
+        language: python
+        additional_dependencies: ["pyyaml==6.0.2"]
+        # Run whenever any scanned surface changes; the script itself
+        # walks the include globs so per-file invocation is fine.
+        files: >
+          ^(
+            docs/.*\.md|
+            CLAUDE\.md|README\.md|AGENTS\.md|
+            src/.*\.(py|md)|
+            tests/.*\.(py|md)|
+            scripts/.*\.py|
+            alembic/.*\.py|
+            scripts/stale_refs\.yaml
+          )$
+        pass_filenames: false
+
       # Mechanically enforce src/core/CLAUDE.md's "one rule": src.core
       # must not import from src.common or any domain package.
       - id: check-layering
