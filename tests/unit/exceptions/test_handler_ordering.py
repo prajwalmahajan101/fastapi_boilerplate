@@ -55,13 +55,13 @@ def test_registered_subclasses_precede_their_parents() -> None:
 def test_status_map_only_contains_basecustomerror_subclasses() -> None:
     """No accidental non-``BaseCustomError`` entries slip into the map."""
     for cls, _ in _get_status_map():
-        assert issubclass(
-            cls, BaseCustomError
-        ), f"{cls.__name__} is registered but does not derive from BaseCustomError."
+        assert issubclass(cls, BaseCustomError), (
+            f"{cls.__name__} is registered but does not derive from BaseCustomError."
+        )
 
 
 def test_status_map_is_non_empty_after_module_import() -> None:
     """Smoke test — the handlers module always registers at least one mapping."""
-    assert (
-        _handlers_module._get_status_map()
-    ), "Status map is empty; handlers.py registration block did not run."
+    assert _handlers_module._get_status_map(), (
+        "Status map is empty; handlers.py registration block did not run."
+    )
