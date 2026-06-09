@@ -1,5 +1,7 @@
 # FastAPI Boilerplate
 
+[![test](https://github.com/prajwalmahajan101/fastapi_boilerplate/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/prajwalmahajan101/fastapi_boilerplate/actions/workflows/test.yml)
+
 A batteries-included starting point for FastAPI services. It ships the
 cross-cutting infrastructure you'd otherwise rebuild every time:
 
