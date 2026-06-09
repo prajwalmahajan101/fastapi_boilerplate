@@ -29,9 +29,7 @@ from src.core.resilience.throttle.provider import get_throttle
 from src.core.resilience.throttle.scopes import _BaseScope, resolve_scope
 
 
-def fixed_window_rate_limit(
-    scope: str | _BaseScope, rate: str
-) -> Callable:
+def fixed_window_rate_limit(scope: str | _BaseScope, rate: str) -> Callable:
     """Return a dependency that uses the O(1) fixed-window counter path.
 
     Same scope + rate grammar as :func:`rate_limit`, but the Redis

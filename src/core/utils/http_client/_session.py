@@ -86,10 +86,7 @@ class SessionManager:
         import aiohttp
 
         current_loop_id = id(asyncio.get_running_loop())
-        if (
-            cls._owner_loop_id is not None
-            and cls._owner_loop_id != current_loop_id
-        ):
+        if cls._owner_loop_id is not None and cls._owner_loop_id != current_loop_id:
             logger.warning(
                 "HTTP session loop changed; resetting shared session state. "
                 "This is expected under pytest-asyncio per-test loops but "

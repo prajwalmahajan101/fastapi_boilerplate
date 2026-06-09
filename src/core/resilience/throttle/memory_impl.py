@@ -92,9 +92,7 @@ class InMemoryThrottle(BaseThrottle):
             ``ThrottleResult`` carrying allow/deny + remaining quota +
             retry-after.
         """
-        return await self.check(
-            identifier, limit=limit, window_seconds=window_seconds
-        )
+        return await self.check(identifier, limit=limit, window_seconds=window_seconds)
 
     async def is_healthy(self) -> bool:
         """In-process backends have no remote dependency to probe.

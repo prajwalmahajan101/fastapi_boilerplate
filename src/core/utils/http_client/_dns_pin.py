@@ -63,9 +63,7 @@ class PinnedResolver:
                 records: list[dict[str, Any]] = []
                 for ip in ips:
                     try:
-                        ip_family = (
-                            socket.AF_INET6 if ":" in ip else socket.AF_INET
-                        )
+                        ip_family = socket.AF_INET6 if ":" in ip else socket.AF_INET
                     except Exception:  # noqa: BLE001
                         ip_family = socket.AF_INET
                     if family not in (socket.AF_UNSPEC, ip_family):

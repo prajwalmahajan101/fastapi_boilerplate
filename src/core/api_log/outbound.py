@@ -97,13 +97,9 @@ def log_outbound_request(service_name: str) -> Callable[[F], F]:
                 wrapper's ``finally`` resets the token, so the ContextVar
                 still carries the request-scoped value.
                 """
-                exc_type = (
-                    type(state.exc).__name__ if state.exc is not None else None
-                )
+                exc_type = type(state.exc).__name__ if state.exc is not None else None
                 exc_msg = (
-                    build_error_message(state.exc)
-                    if state.exc is not None
-                    else None
+                    build_error_message(state.exc) if state.exc is not None else None
                 )
                 return _build_outbound_log(
                     func_kwargs=kwargs,
@@ -219,9 +215,7 @@ def _build_outbound_log(
         elif exc is not None:
             payload = exception_response_payload(exc)
             if payload is not None:
-                resp_body = serialize_body(
-                    payload, settings.api_log_max_body_size
-                )
+                resp_body = serialize_body(payload, settings.api_log_max_body_size)
 
     _http_keys = {
         "method",

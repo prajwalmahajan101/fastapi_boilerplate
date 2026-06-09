@@ -62,9 +62,7 @@ async def _create_cache(alias: str) -> BaseCacheBackend:
             alias,
             key_prefix,
         )
-        backend = RedisCacheBackend(
-            client, alias=recovery_alias, key_prefix=key_prefix
-        )
+        backend = RedisCacheBackend(client, alias=recovery_alias, key_prefix=key_prefix)
         register_for_recovery(backend)
         return backend
     except Exception as exc:  # noqa: BLE001

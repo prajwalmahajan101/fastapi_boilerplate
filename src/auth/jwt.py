@@ -267,9 +267,7 @@ async def check_blacklist(
         )
         # ``token_type`` lives in the event name (not a metric label) to
         # respect the bounded-cardinality contract on ``record_counter``.
-        record_counter(
-            f"auth_blacklist_unreachable_{token_type}", status="error"
-        )
+        record_counter(f"auth_blacklist_unreachable_{token_type}", status="error")
         return BlacklistOutcome.UNAVAILABLE
     return BlacklistOutcome.LISTED if hit is not None else BlacklistOutcome.NOT_LISTED
 
@@ -365,9 +363,7 @@ class JWTProvider:
             raise AuthenticationFailedError("User account is disabled.")
 
         request.state.jwt_claims = payload
-        return AuthResult(
-            user=user, provider=self.name, token_claims=payload
-        )
+        return AuthResult(user=user, provider=self.name, token_claims=payload)
 
 
 # Self-register at import time so the registry picks us up.

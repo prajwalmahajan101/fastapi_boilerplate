@@ -51,7 +51,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
-from typing import Any, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from src.core.resilience.health import BackendHealth
 
@@ -325,9 +325,7 @@ class RedisRecoveryMonitor:
             return
         self._stop.clear()
         self._consecutive_successes = 0
-        self._task = asyncio.create_task(
-            self._run(), name="redis-recovery-monitor"
-        )
+        self._task = asyncio.create_task(self._run(), name="redis-recovery-monitor")
         logger.info("RedisRecoveryMonitor started")
 
     async def stop(self, timeout: float = 5.0) -> None:

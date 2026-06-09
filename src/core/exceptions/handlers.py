@@ -193,9 +193,7 @@ register_exception_mapping(RateLimitError, status.HTTP_429_TOO_MANY_REQUESTS)
 # key returns ``API_KEY_REVOKED`` (not the parent's generic code) even
 # though both resolve to 401.
 register_exception_mapping(APIKeyRevokedError, status.HTTP_401_UNAUTHORIZED)
-register_exception_mapping(
-    AuthenticationFailedError, status.HTTP_401_UNAUTHORIZED
-)
+register_exception_mapping(AuthenticationFailedError, status.HTTP_401_UNAUTHORIZED)
 register_exception_mapping(PermissionDeniedError, status.HTTP_403_FORBIDDEN)
 # Defensive parent fallbacks — registered last so they only catch
 # subclasses added later without their own explicit mapping. Both

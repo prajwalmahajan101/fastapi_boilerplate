@@ -82,31 +82,29 @@ def test_superuser_bypasses_check() -> None:
 
 
 def test_explicit_permission_grants_access() -> None:
-    user = _User(
-        roles=[_Role(permissions=[_Perm(Resource.API_KEY, Action.READ)])]
-    )
+    user = _User(roles=[_Role(permissions=[_Perm(Resource.API_KEY, Action.READ)])])
     assert user_has_permission(user, Resource.API_KEY, Action.READ) is True
     assert user_has_permission(user, Resource.API_KEY, Action.DELETE) is False
 
 
 def test_permission_cache_lives_on_request_state() -> None:
     request = _make_request()
-    user = _User(
-        roles=[_Role(permissions=[_Perm(Resource.API_KEY, Action.READ)])]
-    )
+    user = _User(roles=[_Role(permissions=[_Perm(Resource.API_KEY, Action.READ)])])
 
     # First call populates the cache.
-    assert user_has_permission(
-        user, Resource.API_KEY, Action.READ, request=request
-    ) is True
+    assert (
+        user_has_permission(user, Resource.API_KEY, Action.READ, request=request)
+        is True
+    )
     cache = request.state._permission_cache
     assert (Resource.API_KEY.value, Action.READ.value) in cache
 
     # Mutating the underlying user does not change the cached answer.
     user.roles = []
-    assert user_has_permission(
-        user, Resource.API_KEY, Action.READ, request=request
-    ) is True
+    assert (
+        user_has_permission(user, Resource.API_KEY, Action.READ, request=request)
+        is True
+    )
 
 
 def test_none_user_always_denies() -> None:

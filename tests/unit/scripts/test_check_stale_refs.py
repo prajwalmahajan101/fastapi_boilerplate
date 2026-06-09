@@ -17,9 +17,7 @@ import pytest
 
 # Load the script as a module — it lives outside ``src/`` so the
 # regular ``src.*`` import path will not resolve it.
-_SCRIPT = (
-    Path(__file__).resolve().parents[3] / "scripts" / "check_stale_refs.py"
-)
+_SCRIPT = Path(__file__).resolve().parents[3] / "scripts" / "check_stale_refs.py"
 _spec = importlib.util.spec_from_file_location("check_stale_refs", _SCRIPT)
 assert _spec is not None and _spec.loader is not None
 check_stale_refs = importlib.util.module_from_spec(_spec)

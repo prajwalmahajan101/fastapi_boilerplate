@@ -84,14 +84,20 @@ async def run_profile(iterations: int) -> list[float]:
     # Warm-up to amortise import & JIT cost.
     for _ in range(50):
         await dispatch_mod.capture_and_dispatch(
-            noop_handler, (), {}, trivial_builder,
+            noop_handler,
+            (),
+            {},
+            trivial_builder,
         )
 
     samples_us: list[float] = []
     for _ in range(iterations):
         start = time.perf_counter()
         await dispatch_mod.capture_and_dispatch(
-            noop_handler, (), {}, trivial_builder,
+            noop_handler,
+            (),
+            {},
+            trivial_builder,
         )
         samples_us.append((time.perf_counter() - start) * 1_000_000)
     return samples_us
@@ -106,7 +112,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--iterations", type=int, default=2000)
     parser.add_argument(
-        "--max-p99-us", type=float, default=5_000.0,
+        "--max-p99-us",
+        type=float,
+        default=5_000.0,
         help="Fail (exit 1) when measured p99 exceeds this many microseconds.",
     )
     args = parser.parse_args()
