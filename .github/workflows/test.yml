@@ -38,8 +38,16 @@ jobs:
           --health-retries 5
 
     env:
-      # Conftest fixtures (tests/integration/conftest.py) read these env names
-      # and otherwise pytest.skip the tier. Wire to the service containers.
+      # ── Runtime app config (consumed by Settings / alembic env.py) ──
+      APP_ENV: test
+      DB_HOST: localhost
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: postgres   # override TestSettings.db_name=app_test → match the service db
+      REDIS_URLS: '{"default":"redis://localhost:6379/0"}'
+
+      # ── Integration-tier fixture probes (tests/integration/conftest.py) ──
       TEST_DATABASE_URL: "postgresql+asyncpg://postgres:postgres@localhost:5432/postgres"
       TEST_REDIS_URL: "redis://localhost:6379/0"
 
@@ -63,6 +71,9 @@ jobs:
 
       - name: Ruff (format check)
         run: ruff format --check .
+
+      - name: Apply migrations (alembic upgrade head)
+        run: alembic upgrade head
 
       - name: "Pytest (make test - unit + integration + e2e; integration runs against postgres + redis services)"
         run: make test
