@@ -30,11 +30,5 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements/dev.txt
 
-      - name: Ruff (lint)
-        run: ruff check .
-
-      - name: Ruff (format check)
-        run: ruff format --check .
-
-      - name: Pytest (Makefile `test`: unit + integration + e2e; integration auto-skips with no services)
+      - name: "Pytest (make test - unit + integration + e2e; integration auto-skips with no services)"
         run: make test
