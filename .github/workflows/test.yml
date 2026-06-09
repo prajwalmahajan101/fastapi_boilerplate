@@ -15,6 +15,34 @@ jobs:
       matrix:
         python-version: ["3.12"]
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # Conftest fixtures (tests/integration/conftest.py) read these env names
+      # and otherwise pytest.skip the tier. Wire to the service containers.
+      TEST_DATABASE_URL: "postgresql+asyncpg://postgres:postgres@localhost:5432/postgres"
+      TEST_REDIS_URL: "redis://localhost:6379/0"
+
     steps:
       - uses: actions/checkout@v4
 
@@ -36,5 +64,5 @@ jobs:
       - name: Ruff (format check)
         run: ruff format --check .
 
-      - name: "Pytest (make test - unit + integration + e2e; integration auto-skips with no services)"
+      - name: "Pytest (make test - unit + integration + e2e; integration runs against postgres + redis services)"
         run: make test
