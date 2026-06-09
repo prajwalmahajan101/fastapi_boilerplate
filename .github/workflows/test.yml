@@ -45,7 +45,10 @@ jobs:
       DB_USER: postgres
       DB_PASSWORD: postgres
       DB_NAME: postgres   # override TestSettings.db_name=app_test → match the service db
-      REDIS_URLS: '{"default":"redis://localhost:6379/0"}'
+      # REDIS_URLS deliberately unset — CoreSettings default is
+      # localhost:6379 already, and overriding makes unit tests that
+      # expect the in-memory throttle backend pick up real Redis state.
+      SECRET_KEY: "test-only-throwaway-not-for-production-use"
 
       # ── Integration-tier fixture probes (tests/integration/conftest.py) ──
       TEST_DATABASE_URL: "postgresql+asyncpg://postgres:postgres@localhost:5432/postgres"
