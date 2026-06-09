@@ -61,9 +61,7 @@ async def test_recovers_via_call_after_timeout():
 
 @pytest.mark.asyncio
 async def test_excluded_exceptions_do_not_open():
-    cb = PyBreakerCircuitBreaker(
-        "svc", _config(excluded_exceptions=(ValueError,))
-    )
+    cb = PyBreakerCircuitBreaker("svc", _config(excluded_exceptions=(ValueError,)))
     for _ in range(5):
         await cb.record_failure(ValueError("validation"))
     assert await cb.is_available() is True

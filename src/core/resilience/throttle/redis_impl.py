@@ -43,6 +43,7 @@ logger = logging.getLogger(__name__)
 # every subsequent worker reuses the cleared flag).
 _RECOVERY_PROBE_INTERVAL_S = 30.0
 
+
 class RedisThrottle(BaseThrottle):
     """Distributed sliding-window throttle via a single Lua call per check."""
 

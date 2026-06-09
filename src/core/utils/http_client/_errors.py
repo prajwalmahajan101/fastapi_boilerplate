@@ -109,9 +109,7 @@ def map_aiohttp_errors(
             f"{operation} transport error",
             extra={"url": url, "method": method, "error_class": type(exc).__name__},
         )
-        raise TransientError(
-            f"Transport error contacting {safe_host(url)}"
-        ) from exc
+        raise TransientError(f"Transport error contacting {safe_host(url)}") from exc
 
 
 __all__ = ["map_aiohttp_errors", "raise_for_server_error"]

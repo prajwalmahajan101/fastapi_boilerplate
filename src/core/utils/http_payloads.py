@@ -20,7 +20,9 @@ from typing import Any
 
 try:
     import aiohttp
-except ImportError:  # aiohttp is optional for callers that only use serialize_error_body
+except (
+    ImportError
+):  # aiohttp is optional for callers that only use serialize_error_body
     aiohttp = None  # type: ignore[assignment]
 
 

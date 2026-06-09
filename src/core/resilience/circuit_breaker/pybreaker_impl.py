@@ -33,7 +33,7 @@ from src.core.resilience.circuit_breaker.base import (
 )
 
 if TYPE_CHECKING:
-    import pybreaker as _pybreaker_module
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -106,9 +106,10 @@ class PyBreakerCircuitBreaker(BaseCircuitBreaker):
             # timeout has elapsed, but pybreaker only transitions on its
             # own ``.call()``. Drive a no-op probe through pybreaker so
             # the state machine catches up to reality.
-            if self._opened_at and (
-                time.monotonic() - self._opened_at
-            ) >= self._breaker.reset_timeout:
+            if (
+                self._opened_at
+                and (time.monotonic() - self._opened_at) >= self._breaker.reset_timeout
+            ):
                 try:
                     self._breaker.call(lambda: None)
                 except self._pybreaker_mod.CircuitBreakerError:

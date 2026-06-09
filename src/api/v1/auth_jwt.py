@@ -113,9 +113,7 @@ async def logout(
     if instant revocation matters.
     """
     try:
-        claims = decode_token(
-            payload.refresh_token, expected_type=REFRESH_TOKEN_TYPE
-        )
+        claims = decode_token(payload.refresh_token, expected_type=REFRESH_TOKEN_TYPE)
     except (TokenExpiredError, TokenInvalidError):
         # Already unusable — treat as already-logged-out.
         return SuccessResponse(message="Logged out.")

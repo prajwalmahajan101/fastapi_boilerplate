@@ -28,9 +28,7 @@ async def test_first_call_is_allowed(throttle: InMemoryThrottle) -> None:
 
 async def test_limit_blocks_extra_calls(throttle: InMemoryThrottle) -> None:
     for _ in range(3):
-        await throttle.check_fixed_window(
-            "global:outbound", limit=3, window_seconds=60
-        )
+        await throttle.check_fixed_window("global:outbound", limit=3, window_seconds=60)
     blocked = await throttle.check_fixed_window(
         "global:outbound", limit=3, window_seconds=60
     )
@@ -43,12 +41,8 @@ async def test_check_and_check_fixed_window_share_buckets(
     throttle: InMemoryThrottle,
 ) -> None:
     """In-memory: both APIs are the same path, so they share the bucket."""
-    await throttle.check(
-        "global:outbound", limit=2, window_seconds=60
-    )
-    await throttle.check_fixed_window(
-        "global:outbound", limit=2, window_seconds=60
-    )
+    await throttle.check("global:outbound", limit=2, window_seconds=60)
+    await throttle.check_fixed_window("global:outbound", limit=2, window_seconds=60)
     blocked = await throttle.check_fixed_window(
         "global:outbound", limit=2, window_seconds=60
     )

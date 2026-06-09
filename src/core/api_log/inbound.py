@@ -78,21 +78,14 @@ def log_inbound_request(service_name: str) -> Callable[[F], F]:
             # caches the bytes on ``Request._body`` so the handler's own
             # ``await request.body()`` calls remain side-effect-free.
             req_body_raw: bytes | None = None
-            if (
-                request is not None
-                and get_settings().api_log_capture_request_body
-            ):
+            if request is not None and get_settings().api_log_capture_request_body:
                 req_body_raw = await request.body()
 
             def build_log(state: CaptureState) -> ApiLog:
                 """Materialise the inbound ``ApiLog`` from captured state."""
-                exc_type = (
-                    type(state.exc).__name__ if state.exc is not None else None
-                )
+                exc_type = type(state.exc).__name__ if state.exc is not None else None
                 exc_msg = (
-                    build_error_message(state.exc)
-                    if state.exc is not None
-                    else None
+                    build_error_message(state.exc) if state.exc is not None else None
                 )
                 return _build_inbound_log(
                     request=request,

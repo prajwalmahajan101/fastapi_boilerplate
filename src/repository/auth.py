@@ -12,7 +12,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.base.repository import BaseRepository
 from src.model.auth import APIKey, Role, User
