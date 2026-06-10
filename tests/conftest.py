@@ -7,9 +7,9 @@ I/O — so tests need neither Postgres nor Redis:
   the session, exactly as the lifespan's first startup step does, so any
   code reading ``get_settings()`` sees the same config the app would.
 * :func:`_reset_singletons` drops every module-level singleton after each
-  test via :func:`resilience_kit.testing.reset.reset_all_singletons`, so
-  cache / throttle / circuit-breaker / api-log state never leaks across
-  cases.
+  test via :func:`resilience_kit.testing.reset_all_singletons_async`,
+  so cache / throttle / circuit-breaker / api-log state never leaks
+  across cases.
 
 The :func:`client` fixture constructs ``TestClient(app)`` *without* entering
 its lifespan context: the resilience providers lazily fall back to their
@@ -20,13 +20,13 @@ spin up those services and enter the lifespan explicitly.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
-from resilience_kit.testing.reset import reset_all_singletons
+from resilience_kit.testing import reset_all_singletons_async
 
 from src.app import app
 from src.common.settings import settings
@@ -76,7 +76,7 @@ def _bind_settings() -> Iterator[None]:
 
 
 @pytest.fixture(autouse=True)
-def _reset_singletons() -> Iterator[None]:
+async def _reset_singletons() -> AsyncIterator[None]:
     """Drop every cached process singleton after each test.
 
     Yields:
@@ -84,7 +84,7 @@ def _reset_singletons() -> Iterator[None]:
         the next test starts from a clean slate.
     """
     yield
-    reset_all_singletons()
+    await reset_all_singletons_async()
 
 
 @pytest.fixture
