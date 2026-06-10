@@ -151,7 +151,7 @@ redis==8.0.0
     # via
     #   -r requirements/base.in
     #   resilience-kit
-resilience-kit[audit-postgres,crypto,fastapi,http,redis]==0.1.0rc1
+resilience-kit[audit-postgres,crypto,fastapi,http,redis]==0.1.0
     # via -r requirements/base.in
 s3transfer==0.18.0
     # via boto3
