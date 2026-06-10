@@ -46,7 +46,6 @@ from src.core.middleware.metrics_middleware import MetricsMiddleware
 from src.core.middleware.request_logging import RequestLoggingMiddleware
 from src.core.runtime import configure
 from src.core.utils.crypto import _fernet
-from src.core.utils.http_client import AsyncAPIClient
 from src.core.utils.logging import setup_logging
 from src.core.utils.redis import close_all_redis_clients, wait_for_redis
 from src.db import close_db_engine, init_db_engine
@@ -96,7 +95,6 @@ async def _app_lifespan(app: FastAPI) -> AsyncIterator[None]:
         yield
     finally:
         await close_repository()
-        await AsyncAPIClient.close_session()
         await close_all_redis_clients()
         await close_db_engine()
         logger.info("Application shutdown complete.")
