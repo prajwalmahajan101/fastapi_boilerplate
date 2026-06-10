@@ -17,9 +17,12 @@ both on exit. The boilerplate's lifespan keeps ownership of:
 Shutdown reverses the order, then closes the shared HTTP client +
 Redis clients and disposes the engine cache.
 
-Exception → HTTP status mappings: kit-owned exception classes are mapped
-by ``install_exception_handlers``; domain-specific families register
-their own handler on the same ``app`` in ``src/core/exceptions/handlers.py``.
+Exception → HTTP status mappings: a single ``ResilienceKitError``
+handler in ``src/core/exceptions/handlers.py`` bridges kit-raised
+errors into the boilerplate ``ErrorEnvelope`` via
+``resilience_kit.adapters._envelope.from_exception``. Project-domain
+families (``BaseCustomError`` subclasses) keep their own handler on
+the same ``app``.
 """
 
 from __future__ import annotations
@@ -31,7 +34,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from resilience_kit.adapters.fastapi import (
-    install_exception_handlers,
     install_middleware_stack,
     resilience_lifespan,
 )
@@ -43,6 +45,7 @@ from src.common.settings import settings
 from src.core.api_log import close_repository, init_repository
 from src.core.exceptions import register_exception_handlers
 from src.core.middleware.metrics_middleware import MetricsMiddleware
+from src.core.middleware.request_id_bridge import RequestIdBridgeMiddleware
 from src.core.middleware.request_logging import RequestLoggingMiddleware
 from src.core.runtime import configure
 from src.core.utils.logging import setup_logging
@@ -131,6 +134,15 @@ def create_app() -> FastAPI:
         openapi_url=openapi_url,
     )
 
+    # ``RequestIdBridgeMiddleware`` must be installed BEFORE the kit's
+    # stack so Starlette's prepend semantics put it innermost — i.e. it
+    # runs after the kit's RequestIDMiddleware has populated
+    # ``resilience_kit.context.request_id``. The bridge then copies that
+    # value into ``src.core.context.request_id_ctx`` for the request
+    # lifetime so boilerplate-shaped envelopes / log lines / audit rows
+    # see a non-null ``request_id``.
+    app.add_middleware(RequestIdBridgeMiddleware)
+
     # Kit-owned middleware (six classes, innermost→outermost order
     # handled inside the installer). CORS is intentionally NOT installed
     # via the kit here: the kit's ``SelectiveCorsMiddleware`` is an
@@ -161,12 +173,14 @@ def create_app() -> FastAPI:
             allow_credentials=settings.cors_allow_credentials,
         )
 
-    # Kit installs handlers for every ResilienceKitError subclass.
-    # ``register_exception_handlers`` adds the boilerplate-domain
-    # families on top (auth, repository-specific shapes, etc.) without
-    # shadowing the kit's handlers — they register against different
-    # exception classes.
-    install_exception_handlers(app)
+    # ``register_exception_handlers`` registers a single
+    # ``ResilienceKitError`` handler that translates kit-raised errors
+    # through ``from_exception`` into the boilerplate's ``ErrorEnvelope``
+    # plus the existing handlers for boilerplate ``BaseCustomError``
+    # subclasses, FastAPI ``RequestValidationError``, and the catch-all
+    # 500. The kit's ``install_exception_handlers`` is intentionally NOT
+    # called here — running both would emit two incompatible envelope
+    # shapes for kit-raised vs project-raised errors.
     register_exception_handlers(app)
 
     app.include_router(root_router)
