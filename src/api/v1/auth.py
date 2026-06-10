@@ -31,6 +31,7 @@ from src.core.db.dependencies import get_session
 from src.core.db.transaction import atomic
 from src.core.rbac import RequireResource
 from resilience_kit.adapters.fastapi import rate_limit
+from resilience_kit.throttle import Scope
 from src.core.responses import SuccessEnvelope, SuccessResponse
 from src.repository.auth import APIKeyRepository
 from src.schema.auth import (
@@ -69,7 +70,7 @@ def _user_read(user) -> UserRead:
     "/me",
     summary="Get the authenticated user",
     response_model=SuccessEnvelope[UserRead],
-    dependencies=[Depends(rate_limit("endpoint", "120/min"))],
+    dependencies=[Depends(rate_limit(Scope.ENDPOINT, "120/min"))],
     responses=_AUTH_RESPONSES,
 )
 @log_inbound_request(service_name="auth_api")
@@ -89,7 +90,7 @@ async def me(
     "/api-keys",
     summary="List my API keys",
     response_model=SuccessEnvelope[list[APIKeyRead]],
-    dependencies=[Depends(rate_limit("endpoint", "60/min"))],
+    dependencies=[Depends(rate_limit(Scope.ENDPOINT, "60/min"))],
     responses=_AUTH_RESPONSES,
 )
 @log_inbound_request(service_name="auth_api")
@@ -110,7 +111,7 @@ async def list_api_keys(
     summary="Issue a new API key",
     status_code=status.HTTP_201_CREATED,
     response_model=SuccessEnvelope[APIKeyCreated],
-    dependencies=[Depends(rate_limit("endpoint", "10/min"))],
+    dependencies=[Depends(rate_limit(Scope.ENDPOINT, "10/min"))],
     responses=_AUTH_RESPONSES,
 )
 @log_inbound_request(service_name="auth_api")
@@ -144,7 +145,7 @@ async def create_api_key(
     "/api-keys/{api_key_id}/revoke",
     summary="Revoke an API key",
     response_model=SuccessEnvelope[None],
-    dependencies=[Depends(rate_limit("endpoint", "30/min"))],
+    dependencies=[Depends(rate_limit(Scope.ENDPOINT, "30/min"))],
     responses={**_AUTH_RESPONSES, **RESPONSES_NOT_FOUND},
 )
 @log_inbound_request(service_name="auth_api")
