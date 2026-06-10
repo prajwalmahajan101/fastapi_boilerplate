@@ -1345,8 +1345,8 @@ redis==8.0.0 \
     #   -r requirements/base.in
     #   resilience-kit
 resilience-kit[audit-postgres,crypto,fastapi,http,redis]==0.1.0 \
-    --hash=sha256:e77213820f26ce7ef9e7dbb8cdcd37bc12659be9c18222757516ea9fc326ff54 \
-    --hash=sha256:15ff31f3b9b1a82b44d9413b94129aa16b10b44df76ce2282c6a3f5e92b4052b
+    --hash=sha256:15ff31f3b9b1a82b44d9413b94129aa16b10b44df76ce2282c6a3f5e92b4052b \
+    --hash=sha256:e77213820f26ce7ef9e7dbb8cdcd37bc12659be9c18222757516ea9fc326ff54
     # via -r requirements/base.in
 s3transfer==0.18.0 \
     --hash=sha256:239c13b09e65ad0346e1be7348b8a202dcad44ac7ea7c6eb858fc881dce739b6 \

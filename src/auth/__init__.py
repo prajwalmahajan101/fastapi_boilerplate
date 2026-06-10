@@ -47,7 +47,7 @@ if "oauth_google" in _enabled:
 # import ``src.auth`` (the one-way layering rule). Routes can then
 # ``Depends(RequireResource(..., ...))`` and the composite resolver
 # fires whichever providers the deployment has enabled.
-from src.core.rbac.dependencies import set_current_user_dependency
+from src.core.rbac.dependencies import set_current_user_dependency  # noqa: E402 — late-bind hook keeps the one-way layering rule from src.core to src.auth.
 
 set_current_user_dependency(current_user)
 

@@ -159,17 +159,3 @@ class DecryptionError(InfrastructureError):
     default_message = "Failed to decrypt field value."
     error_code = "DECRYPTION_ERROR"
     status_code = 500
-
-
-class OutboundURLNotAllowedError(InfrastructureError):
-    """An outbound HTTP call targeted a host not in the SSRF allow-list.
-
-    Defence-in-depth alongside the SSRF guard — the SSRF check blocks
-    private addresses, this exception blocks legitimate public hosts
-    the service was never supposed to talk to. The allow-list is owned
-    by ``resilience-kit`` (``RESILIENCE_SSRF__OUTBOUND_ALLOWLIST``).
-    """
-
-    default_message = "Outbound URL is not in the allow-list."
-    error_code = "OUTBOUND_URL_NOT_ALLOWED"
-    status_code = 502

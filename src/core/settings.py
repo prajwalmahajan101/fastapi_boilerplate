@@ -297,6 +297,13 @@ class CoreSettings(BaseSettings):
         provider that *is* implemented and listed in
         ``auth_enabled_providers`` must have its credentials ready
         before the app accepts traffic.
+
+        Returns:
+            ``self`` so pydantic can chain further validators.
+
+        Raises:
+            ValueError: When ``jwt`` is enabled without a signing key, or
+                ``oauth_google`` is enabled without its client credentials.
         """
         enabled = set(self.auth_enabled_providers or [])
         if "jwt" in enabled and self.jwt_signing_key is None:
