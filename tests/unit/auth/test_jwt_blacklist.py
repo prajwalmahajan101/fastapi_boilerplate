@@ -46,9 +46,7 @@ def _patch_cache(monkeypatch: pytest.MonkeyPatch, cache: _StubCache) -> None:
     async def _get_cache(_alias: str) -> _StubCache:
         return cache
 
-    monkeypatch.setattr(
-        "resilience_kit.cache.provider.get_cache", _get_cache
-    )
+    monkeypatch.setattr("resilience_kit.cache.provider.get_cache", _get_cache)
 
 
 @pytest.mark.asyncio
@@ -79,9 +77,7 @@ async def test_unavailable_warns_and_counts_on_cache_outage(
     monkeypatch.setattr(jwt_module, "record_counter", _capture_counter)
 
     with caplog.at_level(logging.WARNING, logger="src.auth.jwt"):
-        outcome = await check_blacklist(
-            "jti-abc", sub="42", token_type="refresh"
-        )
+        outcome = await check_blacklist("jti-abc", sub="42", token_type="refresh")
 
     assert outcome is BlacklistOutcome.UNAVAILABLE
     # WARNING includes identifying claims via extra=

@@ -123,9 +123,7 @@ async def create_api_key(
     """Mint a new API key for the caller. The raw key is returned **once**."""
     service = APIKeyService(session)
     async with atomic(session):
-        api_key, raw_key = await service.create_for_user(
-            user=user, name=payload.name
-        )
+        api_key, raw_key = await service.create_for_user(user=user, name=payload.name)
     data = APIKeyCreated(
         id=api_key.id,
         name=api_key.name,
@@ -164,9 +162,7 @@ async def revoke_api_key(
     """
     service = APIKeyService(session)
     async with atomic(session):
-        revoked_now, already = await service.revoke(
-            api_key_id=api_key_id, user=user
-        )
+        revoked_now, already = await service.revoke(api_key_id=api_key_id, user=user)
     if not revoked_now and not already:
         from src.core.exceptions.repository import EntityNotFoundError
 

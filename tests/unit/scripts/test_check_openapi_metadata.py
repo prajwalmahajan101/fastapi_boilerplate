@@ -17,11 +17,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
-import pytest
 
-_SCRIPT = (
-    Path(__file__).resolve().parents[3] / "scripts" / "check_openapi_metadata.py"
-)
+_SCRIPT = Path(__file__).resolve().parents[3] / "scripts" / "check_openapi_metadata.py"
 _spec = importlib.util.spec_from_file_location("check_openapi_metadata", _SCRIPT)
 assert _spec is not None and _spec.loader is not None
 checker = importlib.util.module_from_spec(_spec)

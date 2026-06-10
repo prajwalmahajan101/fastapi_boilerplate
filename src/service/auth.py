@@ -35,9 +35,7 @@ class APIKeyService(BaseService[APIKey]):
         # Keep a typed alias so this module reads like Django's port.
         self.repository: APIKeyRepository = self.repository  # type: ignore[assignment]
 
-    async def create_for_user(
-        self, *, user: Any, name: str
-    ) -> tuple[APIKey, str]:
+    async def create_for_user(self, *, user: Any, name: str) -> tuple[APIKey, str]:
         """Issue a fresh API key for ``user``.
 
         Returns ``(api_key_instance, raw_key)`` — ``raw_key`` is the

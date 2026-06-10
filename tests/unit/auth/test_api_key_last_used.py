@@ -111,13 +111,9 @@ async def test_queue_overflow_does_not_break_auth(
     monkeypatch.setattr(
         api_key_module, "_debounce_last_used", AsyncMock(return_value=True)
     )
-    monkeypatch.setattr(
-        api_key_module._last_used_queue, "_max_pending", 0
-    )
+    monkeypatch.setattr(api_key_module._last_used_queue, "_max_pending", 0)
 
     provider = APIKeyProvider()
-    result = await provider.authenticate(
-        _StubRequest("rawsecret123"), session=object()
-    )
+    result = await provider.authenticate(_StubRequest("rawsecret123"), session=object())
     assert result is not None  # auth still succeeded
     assert _quiet_persist == []  # nothing submitted because dropped

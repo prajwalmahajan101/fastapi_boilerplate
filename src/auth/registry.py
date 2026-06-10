@@ -87,9 +87,7 @@ def enabled_providers() -> list[AuthProvider]:
     return out
 
 
-async def _resolve(
-    request: Request, session: AsyncSession
-) -> AuthResult | None:
+async def _resolve(request: Request, session: AsyncSession) -> AuthResult | None:
     """Walk the enabled providers and return the first successful result."""
     for provider in enabled_providers():
         result = await provider.authenticate(request, session)

@@ -18,7 +18,6 @@ import pytest
 asyncpg = pytest.importorskip("asyncpg")
 
 from sqlalchemy.ext.asyncio import (  # noqa: E402
-    AsyncSession,
     async_sessionmaker,
 )
 

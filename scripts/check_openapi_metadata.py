@@ -83,9 +83,18 @@ def _responses_uses_default(call: ast.Call) -> bool | None:
                     continue
             for value, key in zip(kw.value.values, kw.value.keys, strict=False):
                 # Spread of a Name: the key is None and value is Name.
-                if key is None and isinstance(value, ast.Name) and value.id == REQUIRED_NAME:
+                if (
+                    key is None
+                    and isinstance(value, ast.Name)
+                    and value.id == REQUIRED_NAME
+                ):
                     return True
-                if key is None and isinstance(value, ast.Starred) and isinstance(value.value, ast.Name) and value.value.id == REQUIRED_NAME:  # pragma: no cover — older ast variants
+                if (
+                    key is None
+                    and isinstance(value, ast.Starred)
+                    and isinstance(value.value, ast.Name)
+                    and value.value.id == REQUIRED_NAME
+                ):  # pragma: no cover — older ast variants
                     return True
             # Fallback: walk all sub-nodes for the name.
             for sub in ast.walk(kw.value):
@@ -193,7 +202,11 @@ def _violations(path: Path) -> list[tuple[int, str, str]]:
         if has_response_model:
             for hit_line in _model_dump_round_trips(node):
                 out.append(
-                    (hit_line, deco_repr_for_body or f"line {decl_lineno}", "no-model_dump-round-trip")
+                    (
+                        hit_line,
+                        deco_repr_for_body or f"line {decl_lineno}",
+                        "no-model_dump-round-trip",
+                    )
                 )
     return out
 

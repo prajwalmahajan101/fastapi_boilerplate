@@ -103,9 +103,7 @@ EXCLUDE_PREFIXES = (
 # Path substrings that mark a scanned file as historical-record. Alembic
 # migrations preserve old column / index names by design — renaming a
 # field is itself encoded as a migration that mentions both names.
-EXCLUDE_SUBSTRINGS = (
-    "/alembic/versions/",
-)
+EXCLUDE_SUBSTRINGS = ("/alembic/versions/",)
 
 
 def load_manifest() -> list[tuple[re.Pattern[str], str]]:
@@ -171,9 +169,7 @@ def scan(
             for compiled, hint in patterns:
                 if compiled.search(line):
                     snippet = line.strip()[:120]
-                    hits.append(
-                        f"{rel}:{lineno}: {snippet}\n    → {hint}"
-                    )
+                    hits.append(f"{rel}:{lineno}: {snippet}\n    → {hint}")
     return hits
 
 

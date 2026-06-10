@@ -32,7 +32,9 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 _AUDIT_COLUMNS = (
-    sa.Column("id", sa.BigInteger(), autoincrement=True, primary_key=True, nullable=False),
+    sa.Column(
+        "id", sa.BigInteger(), autoincrement=True, primary_key=True, nullable=False
+    ),
     sa.Column(
         "created_at",
         sa.DateTime(timezone=True),
@@ -45,7 +47,9 @@ _AUDIT_COLUMNS = (
         server_default=sa.func.now(),
         nullable=False,
     ),
-    sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
+    sa.Column(
+        "is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")
+    ),
     sa.Column(
         "notes",
         sa.dialects.postgresql.JSONB(astext_type=sa.Text()),
@@ -61,7 +65,9 @@ def upgrade() -> None:
         sa.Column("email", sa.String(length=255), nullable=False),
         sa.Column("first_name", sa.String(length=150), nullable=True),
         sa.Column("last_name", sa.String(length=150), nullable=True),
-        sa.Column("timezone", sa.String(length=64), nullable=False, server_default="UTC"),
+        sa.Column(
+            "timezone", sa.String(length=64), nullable=False, server_default="UTC"
+        ),
         sa.Column("last_login_ip", sa.String(length=45), nullable=True),
         sa.UniqueConstraint("email", name="uq_users_email"),
     )
@@ -93,7 +99,9 @@ def upgrade() -> None:
         *_AUDIT_COLUMNS,
         sa.Column("resource", sa.String(length=100), nullable=False),
         sa.Column("action", sa.String(length=20), nullable=False),
-        sa.UniqueConstraint("resource", "action", name="uq_permissions_resource_action"),
+        sa.UniqueConstraint(
+            "resource", "action", name="uq_permissions_resource_action"
+        ),
     )
     op.create_index("ix_permissions_is_active", "permissions", ["is_active"])
 

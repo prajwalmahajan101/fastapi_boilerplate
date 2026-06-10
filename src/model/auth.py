@@ -41,15 +41,35 @@ from src.core.base.model import BaseModel
 user_roles = Table(
     "user_roles",
     BaseModel.metadata,
-    Column("user_id", BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
-    Column("role_id", BigInteger, ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True),
+    Column(
+        "user_id",
+        BigInteger,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "role_id",
+        BigInteger,
+        ForeignKey("roles.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
 )
 
 role_permissions = Table(
     "role_permissions",
     BaseModel.metadata,
-    Column("role_id", BigInteger, ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True),
-    Column("permission_id", BigInteger, ForeignKey("permissions.id", ondelete="CASCADE"), primary_key=True),
+    Column(
+        "role_id",
+        BigInteger,
+        ForeignKey("roles.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "permission_id",
+        BigInteger,
+        ForeignKey("permissions.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
 )
 
 
@@ -89,7 +109,9 @@ class Role(BaseModel):
 
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    is_superuser_role: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_superuser_role: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
     is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     permissions: Mapped[list[Permission]] = relationship(
