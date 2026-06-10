@@ -82,6 +82,30 @@ All settings load via `src.common.settings.Settings` (a subclass of
 `CoreSettings`). Priority: **AWS Secrets Manager → environment → `.env` →
 defaults**. See [`.env.example`](.env.example) for the available knobs.
 
+### Resilience-kit env vars
+
+Circuit-breaker thresholds, retry budgets, cache/throttle backend
+selection, Redis aliases, key prefixes, the Fernet key, and the SSRF
+allow-list are owned by `resilience-kit` and read from
+`RESILIENCE_*`-prefixed env vars consumed by
+`resilience_kit.settings.ResilienceSettings`. The boilerplate's old
+`CIRCUIT_BREAKER_*`, `CACHE_KEY_PREFIX`, `FIELD_ENCRYPTION_KEY`,
+`SSRF_BLOCK_PRIVATE_IPS`, and `OUTBOUND_URL_ALLOWLIST` env vars are
+no longer read. Common translations:
+
+| Old boilerplate env var | New kit env var |
+|---|---|
+| `FIELD_ENCRYPTION_KEY` | `RESILIENCE_CRYPTO__FIELD_ENCRYPTION_KEY` |
+| `SSRF_BLOCK_PRIVATE_IPS` | `RESILIENCE_SSRF__BLOCK_PRIVATE_IPS` |
+| `OUTBOUND_URL_ALLOWLIST` | `RESILIENCE_SSRF__OUTBOUND_ALLOWLIST` |
+| `CIRCUIT_BREAKER_BACKEND` | `RESILIENCE_BACKEND` |
+| `CIRCUIT_BREAKER_REDIS_ALIAS` | `RESILIENCE_REDIS_URL` (URL, not alias) |
+| `CACHE_KEY_PREFIX` / `CIRCUIT_BREAKER_KEY_PREFIX` | `RESILIENCE_DEFAULTS__*` |
+
+Boilerplate-owned knobs (`RATE_LIMIT_REDIS_ALIAS`, `API_LOG_*`,
+`CORS_*`, `SECURITY_HEADERS_ENABLED`, `METRICS_MIDDLEWARE_ENABLED`,
+`MAX_REQUEST_BODY_BYTES`) are unchanged.
+
 ## Tooling
 
 - `ruff` (lint + format), `pydocstyle` + `darglint` (docstrings), `mypy`

@@ -162,11 +162,12 @@ class DecryptionError(InfrastructureError):
 
 
 class OutboundURLNotAllowedError(InfrastructureError):
-    """An outbound HTTP call targeted a host not in ``outbound_url_allowlist``.
+    """An outbound HTTP call targeted a host not in the SSRF allow-list.
 
     Defence-in-depth alongside the SSRF guard — the SSRF check blocks
     private addresses, this exception blocks legitimate public hosts
-    the service was never supposed to talk to.
+    the service was never supposed to talk to. The allow-list is owned
+    by ``resilience-kit`` (``RESILIENCE_SSRF__OUTBOUND_ALLOWLIST``).
     """
 
     default_message = "Outbound URL is not in the allow-list."

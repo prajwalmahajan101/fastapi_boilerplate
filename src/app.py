@@ -77,7 +77,6 @@ async def _app_lifespan(app: FastAPI) -> AsyncIterator[None]:
     # a clear warning trail. The kit's recovery monitor takes over from
     # there on the next successful ping.
     for alias in {
-        settings.circuit_breaker_redis_alias,
         settings.rate_limit_redis_alias,
         "default",  # cache backend's default alias
     }:

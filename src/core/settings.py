@@ -188,22 +188,13 @@ class CoreSettings(BaseSettings):
             )
         return self
 
-    # ── Encryption ─────────────────────────────────────────────────────
-    # ``field_encryption_key`` is a Fernet key consumed by
-    # ``EncryptedString`` columns and ``core.utils.crypto.FernetCipher``.
-    # ``secret_key`` is a general-purpose app secret (token signing, etc.).
-    field_encryption_key: str | None = None
-    secret_key: str | None = None
-
-    # ── SSRF ───────────────────────────────────────────────────────────
-    ssrf_block_private_ips: bool = True
-    #: Positive list of hosts the outbound HTTP layer is allowed to
-    #: call. Empty list (default) and ``"*"`` are permissive — matches
-    #: the historical behaviour. Entries are exact hosts
-    #: (``"example.com"``) or suffix patterns (``".example.com"``).
-    #: Prod / UAT should set this explicitly; the SSRF private-IP
-    #: block is unrelated and stays enabled regardless.
-    outbound_url_allowlist: list[str] = Field(default_factory=list)
+    # ── Encryption + SSRF ─────────────────────────────────────────────
+    # Fernet keys, SSRF private-IP blocking, and the outbound URL
+    # allow-list are owned by ``resilience-kit``. Operators configure
+    # those via ``RESILIENCE_CRYPTO__FIELD_ENCRYPTION_KEY`` /
+    # ``RESILIENCE_SSRF__BLOCK_PRIVATE_IPS`` /
+    # ``RESILIENCE_SSRF__OUTBOUND_ALLOWLIST`` — see the migration note
+    # in the project README.
 
     # ── Response security headers ──────────────────────────────────────
     # Toggle for SecurityHeadersMiddleware (HSTS, X-Content-Type-Options,
@@ -250,43 +241,12 @@ class CoreSettings(BaseSettings):
         default_factory=lambda: {"default": "redis://localhost:6379/0"}
     )
 
-    # ── Resilience defaults (merged with per-service overrides) ────────
-    resilience_defaults: dict[str, Any] = Field(
-        default_factory=lambda: {
-            "circuit_breaker": {
-                "failure_threshold": 5,
-                "success_threshold": 2,
-                "recovery_timeout": 30.0,
-            },
-            "retry": {
-                "max_attempts": 3,
-                "base_delay": 1.0,
-                "exponential_base": 2.0,
-                "max_delay": 10.0,
-            },
-        }
-    )
-    circuit_breaker_redis_alias: str = "default"
-    circuit_breaker_key_prefix: str = "cb"
-    #: Prepended to every key the Redis cache backend writes. Two
-    #: deployments sharing a Redis cluster MUST set distinct prefixes
-    #: to avoid colliding (the throttle + breaker tiers have their
-    #: own prefixes; this one covers ``core.resilience.cache``,
-    #: which backs the API-key debounce and the JWT jti blacklist).
-    #: The in-memory fallback is per-process and ignores the prefix.
-    cache_key_prefix: str = "app"
-    #: Selects the registry tier built by
-    #: ``core.resilience.circuit_breaker.provider``.
-    #:
-    #: * ``"auto"`` (default) — try Redis, fall back to the async
-    #:   in-memory registry on connection failure. Matches the
-    #:   pre-existing behaviour.
-    #: * ``"redis"`` — force Redis; degrade only on connection failure
-    #:   (same fallback as ``"auto"``).
-    #: * ``"memory"`` — skip Redis entirely; per-process state only.
-    #: * ``"pybreaker"`` — build a process-local ``PyBreakerRegistry``
-    #:   (third-party in-process tier) with no Redis attempt.
-    circuit_breaker_backend: Literal["auto", "redis", "memory", "pybreaker"] = "auto"
+    # ── Resilience knobs (owned by resilience-kit) ─────────────────────
+    # Circuit-breaker thresholds, retry budgets, cache/breaker/throttle
+    # backend selection, Redis aliases, and key prefixes are configured
+    # via ``RESILIENCE_*`` env vars consumed by
+    # ``resilience_kit.settings.ResilienceSettings``. See the migration
+    # note in the project README.
 
     # ── Auth (pluggable provider registry) ─────────────────────────────
     #: Ordered list of provider names ``src.auth.registry`` consults on
