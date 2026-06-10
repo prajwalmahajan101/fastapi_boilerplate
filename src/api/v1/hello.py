@@ -17,7 +17,7 @@ from pydantic import BaseModel
 
 from src.common.openapi_metadata import DEFAULT_RESPONSES
 from src.core.api_log import log_inbound_request
-from src.core.resilience.throttle import rate_limit
+from resilience_kit.adapters.fastapi import rate_limit
 from src.core.responses import SuccessEnvelope, SuccessResponse
 
 router = APIRouter()

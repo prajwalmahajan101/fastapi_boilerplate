@@ -34,7 +34,7 @@ from src.core.context import get_request_id
 from src.core.db.dependencies import get_session
 from src.core.db.transaction import atomic
 from src.core.exceptions.auth import AuthenticationFailedError
-from src.core.resilience.throttle import rate_limit
+from resilience_kit.adapters.fastapi import rate_limit
 from src.core.responses import SuccessEnvelope, SuccessResponse
 from src.core.runtime import get_settings
 from src.repository.auth import RoleRepository, UserRepository

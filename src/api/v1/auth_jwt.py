@@ -35,7 +35,7 @@ from src.core.exceptions.auth import (
     TokenInvalidError,
     TokenRevokedError,
 )
-from src.core.resilience.throttle import rate_limit
+from resilience_kit.adapters.fastapi import rate_limit
 from src.core.responses import SuccessEnvelope, SuccessResponse
 from src.schema.auth import TokenLogoutRequest, TokenPair, TokenRefreshRequest
 
