@@ -247,7 +247,7 @@ async def check_blacklist(
         :class:`BlacklistOutcome` — ``LISTED``, ``NOT_LISTED``, or
         ``UNAVAILABLE``.
     """
-    from src.core.resilience.cache.provider import get_cache  # noqa: PLC0415
+    from resilience_kit.cache.provider import get_cache  # noqa: PLC0415
 
     alias = get_settings().jwt_blacklist_cache_alias
     try:
@@ -298,7 +298,7 @@ async def blacklist_jti(jti: str, *, ttl_seconds: int | None = None) -> None:
         ttl_seconds: Cache TTL — defaults to the refresh-token TTL so
             the entry expires when the underlying token would have.
     """
-    from src.core.resilience.cache.provider import get_cache  # noqa: PLC0415
+    from resilience_kit.cache.provider import get_cache  # noqa: PLC0415
 
     settings = get_settings()
     ttl = ttl_seconds if ttl_seconds is not None else settings.jwt_refresh_ttl_seconds

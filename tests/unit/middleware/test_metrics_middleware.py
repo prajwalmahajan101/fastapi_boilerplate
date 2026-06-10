@@ -14,7 +14,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.core.middleware import install_core_middleware
+from src.core.middleware import MetricsMiddleware
 
 
 @pytest.fixture
@@ -30,14 +30,7 @@ def app_with_metrics() -> FastAPI:
     async def boom() -> dict:
         raise RuntimeError("forced failure")
 
-    install_core_middleware(
-        app,
-        cors_enabled=False,
-        enable_security_headers=False,
-        enable_body_size_limit=False,
-        enable_rate_limit_headers=False,
-        enable_metrics_middleware=True,
-    )
+    app.add_middleware(MetricsMiddleware)
     return app
 
 
@@ -81,13 +74,6 @@ def test_metrics_middleware_off_by_default(
     async def ok() -> dict:
         return {"ok": True}
 
-    install_core_middleware(
-        app,
-        cors_enabled=False,
-        enable_security_headers=False,
-        enable_body_size_limit=False,
-        enable_rate_limit_headers=False,
-    )
     caplog.set_level(logging.INFO, logger="src.core.metrics")
     client = TestClient(app)
     client.get("/ok")

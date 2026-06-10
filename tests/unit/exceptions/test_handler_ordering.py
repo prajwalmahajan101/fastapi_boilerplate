@@ -27,8 +27,6 @@ def _force_register_all_modules() -> None:
     import src.core.exceptions.rate_limit  # noqa: F401
     import src.core.exceptions.repository  # noqa: F401
     import src.core.exceptions.validation  # noqa: F401
-    import src.core.resilience.cache.utils  # noqa: F401
-    import src.core.utils.crypto  # noqa: F401
 
 
 def test_registered_subclasses_precede_their_parents() -> None:

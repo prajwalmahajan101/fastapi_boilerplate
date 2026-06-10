@@ -19,7 +19,7 @@ from urllib.parse import urlparse
 
 from src.core.exceptions.infrastructure import S3Error
 from src.core.exceptions.validation import ValidationError
-from src.core.resilience.decorators import resilient
+from resilience_kit.decorators import resilient
 from src.core.runtime import get_settings
 from src.core.utils.aws import get_aws_client
 from src.core.utils.log_sanitization import safe_log_dict

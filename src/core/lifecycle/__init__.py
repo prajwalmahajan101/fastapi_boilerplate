@@ -2,6 +2,7 @@
 
 from src.core.lifecycle.healthcheck import (
     HealthCheckResult,
+    breaker_check,
     cache_check,
     create_health_router,
     create_readiness_router,
@@ -11,6 +12,7 @@ from src.core.lifecycle.healthcheck import (
 
 __all__ = [
     "HealthCheckResult",
+    "breaker_check",
     "cache_check",
     "create_health_router",
     "create_readiness_router",

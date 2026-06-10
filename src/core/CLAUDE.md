@@ -11,10 +11,11 @@
   HTTP-status registry (`register_exception_mapping`).
 - `responses/` — the response envelope + `SuccessResponse` /
   `ErrorResponse` / `PaginatedResponse` factories.
-- `resilience/` — circuit breaker, retry, cache, throttle/rate-limit, each
-  Redis-backed with an in-memory fallback, plus a `resilience_registry`.
-- `middleware/` — request-id, request/exception logging, security headers,
-  body-size cap, selective CORS, rate-limit headers + `install_core_middleware`.
+- `middleware/` — boilerplate-owned extras on top of the kit's stack:
+  `MetricsMiddleware`, `RequestLoggingMiddleware`, `SelectiveCORSMiddleware`.
+  Request-id, body-size cap, security headers, rate-limit headers, and
+  exception logging now come from
+  `resilience_kit.adapters.fastapi.install_middleware_stack`.
 - `api_log/` — fire-and-forget request/response audit (Postgres/Noop
   backend). Split into `inbound` / `outbound` (decorators), `sanitizers`
   / `error_messages` (pure helpers), and `dispatch` (bounded queue);
@@ -23,8 +24,10 @@
 - `db/` — request-scoped `get_session` dependency, the `atomic` boundary,
   and `best_effort_atomic` for log-and-swallow fan-out writes.
 - `lifecycle/` — health/readiness router builders.
-- `utils/` — logging, crypto, HTTP client, Redis, S3/SES, SSRF guard,
-  pagination, fire-and-forget queue.
+- `utils/` — logging, AWS, Redis, S3/SES, pagination, fire-and-forget
+  queue, log sanitisation, function logger, network/timing/data helpers.
+  Crypto (`FernetCipher`), the SSRF guard, and the HTTP client moved to
+  `resilience_kit.{crypto,ssrf,http_client}`.
 - `runtime.py` / `settings.py` — `CoreSettings` + the runtime config bridge.
 
 ## The one rule

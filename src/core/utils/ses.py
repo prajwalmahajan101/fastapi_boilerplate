@@ -26,7 +26,7 @@ from email.utils import formatdate
 from typing import Any, Iterable
 
 from src.core.exceptions.infrastructure import SESError, TransientError
-from src.core.resilience.decorators import resilient
+from resilience_kit.decorators import resilient
 from src.core.runtime import get_settings
 from src.core.utils.aws import get_aws_client
 from src.core.utils.log_sanitization import safe_log_dict

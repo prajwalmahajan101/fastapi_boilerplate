@@ -47,7 +47,7 @@ def _patch_cache(monkeypatch: pytest.MonkeyPatch, cache: _StubCache) -> None:
         return cache
 
     monkeypatch.setattr(
-        "src.core.resilience.cache.provider.get_cache", _get_cache
+        "resilience_kit.cache.provider.get_cache", _get_cache
     )
 
 
