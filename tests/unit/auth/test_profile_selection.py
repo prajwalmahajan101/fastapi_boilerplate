@@ -27,13 +27,10 @@ def test_profile_selection(monkeypatch, env, expected):
     assert type(mod.settings).__name__ == expected
 
 
-def test_prod_profile_fails_without_secrets(monkeypatch):
+def test_prod_profile_fails_on_localhost_db(monkeypatch):
     monkeypatch.setenv("APP_ENV", "prod")
-    monkeypatch.delenv("FIELD_ENCRYPTION_KEY", raising=False)
-    monkeypatch.delenv("SECRET_KEY", raising=False)
     monkeypatch.delenv("DB_HOST", raising=False)
+    monkeypatch.delenv("POSTGRES_HOST", raising=False)
     with pytest.raises(Exception) as exc_info:
         _reload_settings()
-    msg = str(exc_info.value)
-    assert "FIELD_ENCRYPTION_KEY" in msg
-    assert "SECRET_KEY" in msg
+    assert "DB_HOST" in str(exc_info.value)

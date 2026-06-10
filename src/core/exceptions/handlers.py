@@ -20,6 +20,8 @@ from typing import Any
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from resilience_kit.adapters._envelope import from_exception
+from resilience_kit.exceptions import ResilienceKitError
 
 from src.core.base.exception import BaseCustomError
 from src.core.context import get_request_id
@@ -42,6 +44,7 @@ from src.core.exceptions.rate_limit import RateLimitError
 from src.core.exceptions.repository import EntityNotFoundError, RepositoryError
 from src.core.exceptions.validation import ValidationError
 from src.core.responses.envelope import ErrorResponse
+from src.core.responses.schemas import ErrorDetail
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +104,42 @@ async def custom_error_handler(request: Request, exc: Exception) -> JSONResponse
         status_code=status_code,
         headers=headers,
         request_id=exc.request_id or get_request_id(),
+    )
+
+
+async def kit_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Bridge any ``ResilienceKitError`` into the boilerplate ``ErrorEnvelope``.
+
+    The kit's default handler emits the LLD §11 shape
+    ``{error_code, message, details}``; this repo's contract is the
+    richer ``{success, message, data, errors, request_id}`` envelope.
+    Translates the kit's LLD body into one ``ErrorDetail`` entry so kit-
+    raised errors look identical to project-raised ones on the wire.
+
+    Args:
+        request: The incoming FastAPI request (unused; kept for the
+            FastAPI handler signature).
+        exc: The raised ``ResilienceKitError`` subclass instance.
+
+    Returns:
+        ``ErrorResponse`` JSON envelope. HTTP status and any
+        rate-limit headers come from
+        :func:`resilience_kit.adapters._envelope.from_exception`.
+    """
+    assert isinstance(exc, ResilienceKitError)
+    body, status_code, headers = from_exception(exc)
+    return ErrorResponse(
+        message=body["message"],
+        errors=[
+            ErrorDetail(
+                code=body["error_code"],
+                message=body["message"],
+                field=None,
+                details=body["details"] or None,
+            )
+        ],
+        status_code=status_code,
+        headers=headers or None,
     )
 
 
@@ -164,6 +203,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     Args:
         app: The FastAPI app to register handlers on.
     """
+    app.add_exception_handler(ResilienceKitError, kit_error_handler)
     app.add_exception_handler(BaseCustomError, custom_error_handler)
     app.add_exception_handler(RequestValidationError, request_validation_handler)
     app.add_exception_handler(Exception, unhandled_exception_handler)

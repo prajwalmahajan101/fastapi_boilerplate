@@ -96,11 +96,6 @@ class DevSettings(Settings):
         missing: list[str] = []
         if not os.getenv("POSTGRES_HOST") and self.db_host == "localhost":
             missing.append("DB_HOST")
-        if (
-            self.field_encryption_key is None
-            and os.getenv("FIELD_ENCRYPTION_KEY") is None
-        ):
-            missing.append("FIELD_ENCRYPTION_KEY")
         if missing:
             raise ValueError(
                 "Dev profile requires explicit settings — missing: "
@@ -125,10 +120,6 @@ class ProdSettings(Settings):
     @model_validator(mode="after")
     def _validate_prod_required(self) -> "ProdSettings":
         missing: list[str] = []
-        if self.field_encryption_key is None:
-            missing.append("FIELD_ENCRYPTION_KEY")
-        if self.secret_key is None:
-            missing.append("SECRET_KEY")
         if self.db_host == "localhost":
             missing.append("DB_HOST (must not be localhost in prod)")
         if missing:

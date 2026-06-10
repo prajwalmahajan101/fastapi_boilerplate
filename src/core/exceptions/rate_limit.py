@@ -1,7 +1,7 @@
 """Rate-limit exception — surfaces throttle rejections through the standard envelope.
 
-Raised by the ``rate_limit`` FastAPI dependency in
-``src/core/resilience/throttle/dependencies.py`` instead of a raw
+Raised by the ``rate_limit`` FastAPI dependency from
+``resilience_kit.adapters.fastapi`` instead of a raw
 ``fastapi.HTTPException``, so the 429 response shape matches the
 ``ErrorEnvelope`` contract and carries the same ``Retry-After`` /
 ``X-RateLimit-*`` headers.

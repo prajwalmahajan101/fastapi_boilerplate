@@ -97,7 +97,7 @@ async def _load_api_key_by_prefix(
 
 async def _debounce_last_used(api_key_id: int) -> bool:
     """Return ``True`` when this caller should update ``last_used_at``."""
-    from src.core.resilience.cache.provider import get_cache  # noqa: PLC0415
+    from resilience_kit.cache.provider import get_cache  # noqa: PLC0415
 
     cache_key = f"apikey_used_{api_key_id}"
     try:

@@ -34,7 +34,8 @@ from src.core.context import get_request_id
 from src.core.db.dependencies import get_session
 from src.core.db.transaction import atomic
 from src.core.exceptions.auth import AuthenticationFailedError
-from src.core.resilience.throttle import rate_limit
+from resilience_kit.adapters.fastapi import rate_limit
+from resilience_kit.throttle import Scope
 from src.core.responses import SuccessEnvelope, SuccessResponse
 from src.core.runtime import get_settings
 from src.repository.auth import RoleRepository, UserRepository
@@ -192,7 +193,7 @@ oauth_router = APIRouter()
 @oauth_router.get(
     "/login",
     summary="Redirect to Google's OAuth consent screen",
-    dependencies=[Depends(rate_limit("auth", "5/min"))],
+    dependencies=[Depends(rate_limit(Scope.AUTH, "5/min"))],
 )
 @log_inbound_request(service_name="auth_api")
 async def google_login(request: Request):
@@ -210,7 +211,7 @@ async def google_login(request: Request):
     "/callback",
     summary="Exchange the OAuth code for a JWT pair",
     response_model=SuccessEnvelope[TokenPair],
-    dependencies=[Depends(rate_limit("auth", "5/min"))],
+    dependencies=[Depends(rate_limit(Scope.AUTH, "5/min"))],
 )
 @log_inbound_request(service_name="auth_api")
 async def google_callback(

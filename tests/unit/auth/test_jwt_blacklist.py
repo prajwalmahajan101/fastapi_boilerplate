@@ -46,7 +46,7 @@ def _patch_cache(monkeypatch: pytest.MonkeyPatch, cache: _StubCache) -> None:
     async def _get_cache(_alias: str) -> _StubCache:
         return cache
 
-    monkeypatch.setattr("src.core.resilience.cache.provider.get_cache", _get_cache)
+    monkeypatch.setattr("resilience_kit.cache.provider.get_cache", _get_cache)
 
 
 @pytest.mark.asyncio

@@ -19,7 +19,7 @@ from typing import Any
 from sqlalchemy import String
 from sqlalchemy.types import TypeDecorator
 
-from src.core.utils.crypto import FernetCipher
+from resilience_kit import FernetCipher
 
 
 class EncryptedString(TypeDecorator):

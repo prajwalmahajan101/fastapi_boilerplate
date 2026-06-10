@@ -18,25 +18,15 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
+from resilience_kit.cache.provider import get_cache
+from resilience_kit.circuit_breaker.provider import get_breaker
+from resilience_kit.throttle.provider import get_throttle
+
 from sqlalchemy import text
 
 from src.core.context import get_request_id
-from src.core.resilience.cache.provider import (
-    get_cache,
-    reset_backend as cache_reset_backend,
-)
-from src.core.resilience.circuit_breaker.provider import (
-    get_registry,
-    reset_backend as breaker_reset_backend,
-)
-from src.core.resilience.throttle.provider import (
-    get_throttle,
-    reset_backend as throttle_reset_backend,
-)
-from src.core.runtime import get_settings
 from src.core.utils.db import get_app_engine
 from src.core.utils.logging import get_logger
-from src.core.utils.redis import get_redis_client
 
 logger = get_logger(__name__)
 
@@ -225,43 +215,12 @@ async def db_check() -> HealthCheckResult:
         )
 
 
-async def _redis_alive(alias: str) -> bool:
-    """Best-effort PING against ``alias``'s Redis client.
-
-    Used by the cache / throttle probes to decide whether a bare
-    in-memory fallback (cached at boot because Redis was unreachable)
-    should be torn down so the next provider call rebuilds against a
-    now-live Redis.
-
-    Args:
-        alias: Cache backend alias from ``redis_urls`` config.
-
-    Returns:
-        ``True`` on ``PING`` success; ``False`` on any failure.
-    """
-    try:
-        client = await get_redis_client(alias)
-        await client.ping()
-        return True
-    except Exception:  # noqa: BLE001
-        return False
-
-
 def cache_check(alias: str = "default") -> Check:
-    """Build a probe that calls ``is_healthy`` on the named cache alias.
-
-    When the currently-cached backend label is ``"memory"`` (boot-time
-    fallback because Redis was unreachable when the cache was first
-    constructed) the probe additionally pings the configured Redis
-    alias directly. On success it calls
-    :func:`cache.provider.reset_backend` so the next ``get_cache``
-    rebuilds against Redis — closing the asymmetry between the
-    in-call recovery probe (which can only promote an
-    already-wrapped :class:`RedisCacheBackend`) and a bare
-    :class:`InMemoryCacheBackend`.
+    """Build a probe that calls ``health_check`` on the named kit cache alias.
 
     Args:
-        alias: Cache backend alias from ``redis_urls`` config.
+        alias: Cache provider alias resolved by
+            ``resilience_kit.cache.provider.get_cache``.
 
     Returns:
         An async probe callable; the closure carries ``alias`` so each
@@ -269,7 +228,7 @@ def cache_check(alias: str = "default") -> Check:
     """
 
     async def _check() -> HealthCheckResult:
-        """Resolve the cache backend, attempt boot-time recovery, then probe.
+        """Resolve the kit cache backend and probe its health.
 
         Returns:
             ``HealthCheckResult`` named ``cache[<alias>]`` with the
@@ -277,19 +236,11 @@ def cache_check(alias: str = "default") -> Check:
         """
         try:
             cache = await get_cache(alias)
-            if cache.backend_name == "memory" and await _redis_alive(alias):
-                logger.info(
-                    "Cache[%s] boot-fallback recovered (readyz probe); "
-                    "rebuilding backend.",
-                    alias,
-                )
-                await cache_reset_backend(alias)
-                cache = await get_cache(alias)
-            healthy = await cache.is_healthy()
+            snap = await cache.health_check()
             return HealthCheckResult(
                 name=f"cache[{alias}]",
-                healthy=healthy,
-                detail=cache.backend_name,
+                healthy=snap.healthy,
+                detail=snap.backend,
             )
         except Exception as exc:  # noqa: BLE001
             return HealthCheckResult(
@@ -303,22 +254,14 @@ def cache_check(alias: str = "default") -> Check:
 
 
 def throttle_check() -> Check:
-    """Build a probe that calls ``is_healthy`` on the process-wide throttle.
-
-    The throttle is a singleton (one backend serving every scope) so
-    there is no alias to plumb — the throttle's own ``backend_name``
-    is reported in ``detail`` for operator visibility. When the cached
-    throttle is the bare :class:`InMemoryThrottle` (boot-time fallback)
-    the probe pings the configured rate-limit alias and, on success,
-    calls :func:`throttle.provider.reset_backend` so the next
-    ``get_throttle`` call rebuilds against Redis.
+    """Build a probe that calls ``health_check`` on the kit throttle singleton.
 
     Returns:
         An async probe callable named ``throttle_check`` for logging.
     """
 
     async def _check() -> HealthCheckResult:
-        """Resolve the throttle backend, attempt boot-time recovery, then probe.
+        """Resolve the kit throttle backend and probe its health.
 
         Returns:
             ``HealthCheckResult`` named ``throttle`` with the outcome;
@@ -326,20 +269,11 @@ def throttle_check() -> Check:
         """
         try:
             throttle = await get_throttle()
-            if throttle.backend_name == "memory":
-                alias = get_settings().rate_limit_redis_alias
-                if await _redis_alive(alias):
-                    logger.info(
-                        "Throttle boot-fallback recovered (readyz probe); "
-                        "rebuilding backend."
-                    )
-                    await throttle_reset_backend()
-                    throttle = await get_throttle()
-            healthy = await throttle.is_healthy()
+            snap = await throttle.health_check()
             return HealthCheckResult(
                 name="throttle",
-                healthy=healthy,
-                detail=throttle.backend_name,
+                healthy=snap.healthy,
+                detail=snap.backend,
             )
         except Exception as exc:  # noqa: BLE001
             return HealthCheckResult(
@@ -352,46 +286,31 @@ def throttle_check() -> Check:
     return _check
 
 
-def breaker_check() -> Check:
-    """Build a probe that calls ``is_healthy`` on the circuit-breaker registry.
+def breaker_check(name: str = "default") -> Check:
+    """Build a probe that calls ``health_check`` on the kit circuit breaker.
 
-    Mirrors :func:`throttle_check`. The breaker registry is a
-    singleton (one registry serving every named breaker) so there is
-    no alias to plumb — the registry's own ``backend_name`` is
-    reported in ``detail`` for operator visibility. When the cached
-    registry is the bare :class:`InMemoryRegistry` (boot-time
-    fallback) the probe pings the configured
-    ``circuit_breaker_redis_alias`` and, on success, calls
-    :func:`circuit_breaker.provider.reset_backend` so the next
-    ``get_registry`` call rebuilds against Redis.
+    Args:
+        name: Breaker name resolved by
+            ``resilience_kit.circuit_breaker.provider.get_breaker``.
 
     Returns:
         An async probe callable named ``breaker_check`` for logging.
     """
 
     async def _check() -> HealthCheckResult:
-        """Resolve the breaker registry, attempt boot-time recovery, then probe.
+        """Resolve the kit breaker and probe its health.
 
         Returns:
             ``HealthCheckResult`` named ``breaker`` with the outcome;
             the backend label is exposed via ``detail``.
         """
         try:
-            registry = await get_registry()
-            if registry.backend_name == "memory":
-                alias = get_settings().circuit_breaker_redis_alias
-                if await _redis_alive(alias):
-                    logger.info(
-                        "Breaker boot-fallback recovered (readyz probe); "
-                        "rebuilding backend."
-                    )
-                    await breaker_reset_backend()
-                    registry = await get_registry()
-            healthy = await registry.is_healthy()
+            breaker = await get_breaker(name)
+            snap = await breaker.health_check()
             return HealthCheckResult(
                 name="breaker",
-                healthy=healthy,
-                detail=registry.backend_name,
+                healthy=snap.healthy,
+                detail=snap.backend,
             )
         except Exception as exc:  # noqa: BLE001
             return HealthCheckResult(

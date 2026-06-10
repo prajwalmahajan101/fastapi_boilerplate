@@ -17,7 +17,8 @@ from pydantic import BaseModel
 
 from src.common.openapi_metadata import DEFAULT_RESPONSES
 from src.core.api_log import log_inbound_request
-from src.core.resilience.throttle import rate_limit
+from resilience_kit.adapters.fastapi import rate_limit
+from resilience_kit.throttle import Scope
 from src.core.responses import SuccessEnvelope, SuccessResponse
 
 router = APIRouter()
@@ -33,7 +34,7 @@ class HelloData(BaseModel):
     "/hello",
     summary="Say hello",
     response_model=SuccessEnvelope[HelloData],
-    dependencies=[Depends(rate_limit("endpoint", "60/min"))],
+    dependencies=[Depends(rate_limit(Scope.ENDPOINT, "60/min"))],
     responses={**DEFAULT_RESPONSES},
 )
 @log_inbound_request(service_name="example_api")

@@ -15,7 +15,8 @@ from src.common.openapi_metadata import DEFAULT_RESPONSES, RESPONSES_NOT_FOUND
 from src.core.api_log import log_inbound_request
 from src.core.db.dependencies import get_session
 from src.core.db.transaction import atomic
-from src.core.resilience.throttle import rate_limit
+from resilience_kit.adapters.fastapi import rate_limit
+from resilience_kit.throttle import Scope
 from src.core.responses import (
     PaginatedResponse,
     SuccessEnvelope,
@@ -33,7 +34,7 @@ router = APIRouter()
     summary="Create an item",
     status_code=status.HTTP_201_CREATED,
     response_model=SuccessEnvelope[ItemRead],
-    dependencies=[Depends(rate_limit("endpoint", "30/min"))],
+    dependencies=[Depends(rate_limit(Scope.ENDPOINT, "30/min"))],
     responses={**DEFAULT_RESPONSES},
 )
 @log_inbound_request(service_name="example_api")
@@ -66,7 +67,7 @@ async def create_item(
     "",
     summary="List items",
     response_model=SuccessEnvelope[PaginatedData[ItemRead]],
-    dependencies=[Depends(rate_limit("endpoint", "100/min"))],
+    dependencies=[Depends(rate_limit(Scope.ENDPOINT, "100/min"))],
     responses={**DEFAULT_RESPONSES},
 )
 @log_inbound_request(service_name="example_api")
@@ -101,7 +102,7 @@ async def list_items(
     "/{item_id}",
     summary="Get an item",
     response_model=SuccessEnvelope[ItemRead],
-    dependencies=[Depends(rate_limit("endpoint", "100/min"))],
+    dependencies=[Depends(rate_limit(Scope.ENDPOINT, "100/min"))],
     responses={**DEFAULT_RESPONSES, **RESPONSES_NOT_FOUND},
 )
 @log_inbound_request(service_name="example_api")
@@ -132,7 +133,7 @@ async def get_item(
     "/{item_id}",
     summary="Update an item",
     response_model=SuccessEnvelope[ItemRead],
-    dependencies=[Depends(rate_limit("endpoint", "30/min"))],
+    dependencies=[Depends(rate_limit(Scope.ENDPOINT, "30/min"))],
     responses={**DEFAULT_RESPONSES, **RESPONSES_NOT_FOUND},
 )
 @log_inbound_request(service_name="example_api")
@@ -171,7 +172,7 @@ async def update_item(
     "/{item_id}",
     summary="Delete an item",
     response_model=SuccessEnvelope[None],
-    dependencies=[Depends(rate_limit("endpoint", "30/min"))],
+    dependencies=[Depends(rate_limit(Scope.ENDPOINT, "30/min"))],
     responses={**DEFAULT_RESPONSES, **RESPONSES_NOT_FOUND},
 )
 @log_inbound_request(service_name="example_api")

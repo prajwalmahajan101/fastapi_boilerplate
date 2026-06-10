@@ -42,7 +42,21 @@ def test_request_id_is_propagated(client: TestClient) -> None:
 
 
 def test_rate_limit_headers_present(client: TestClient) -> None:
-    """The throttle dependency surfaces ``X-RateLimit-*`` headers."""
-    response = client.get("/api/v1/hello")
-    assert response.headers.get("X-RateLimit-Limit") == "60"
-    assert "X-RateLimit-Remaining" in response.headers
+    """Throttle 429 carries ``Retry-After`` + ``X-RateLimit-*`` headers.
+
+    The kit (post-M7) only emits rate-limit headers on the rejection
+    response, not on every allowed request — different from the
+    pre-kit boilerplate behavior. Drive the endpoint past its
+    ``60/min`` budget and assert the 429 carries the canonical
+    header set defined by
+    ``resilience_kit.exceptions.RateLimitError.response_headers``.
+    """
+    last_response = None
+    for _ in range(70):
+        last_response = client.get("/api/v1/hello")
+        if last_response.status_code == 429:
+            break
+    assert last_response is not None and last_response.status_code == 429
+    assert last_response.headers.get("Retry-After")
+    assert last_response.headers.get("X-RateLimit-Limit") == "60"
+    assert "X-RateLimit-Remaining" in last_response.headers

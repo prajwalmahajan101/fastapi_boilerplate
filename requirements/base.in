@@ -46,3 +46,11 @@ itsdangerous  # Authlib StarletteOAuth2App needs SessionMiddleware
 # `circuit_breaker_backend="pybreaker"`. Imported lazily so deployments
 # that stay on the redis / memory tiers do not pay the cost.
 pybreaker
+
+# resilience-kit — the shared resilience kernel (M7/M8b migration).
+# Replaces this repo's embedded `src/core/resilience/`, kit-owned
+# middleware, ssrf guard, Fernet helper, HTTP client, and singleton-
+# reset surface. v0.1.0 adds the helpers used by `src/core/middleware/
+# request_id_bridge.py`, `src/core/exceptions/handlers.py::kit_error_handler`,
+# `src/core/settings.py::legacy_env_alias()`, and the async test fixture.
+resilience-kit[fastapi,redis,http,crypto,audit-postgres]==0.1.0
