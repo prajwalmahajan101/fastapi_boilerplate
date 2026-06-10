@@ -20,10 +20,13 @@ annotated-types==0.7.0
     # via pydantic
 anyio==4.13.0
     # via
+    #   httpx
     #   starlette
     #   watchfiles
 asyncpg==0.31.0
-    # via -r requirements/base.in
+    # via
+    #   -r requirements/base.in
+    #   resilience-kit
 attrs==26.1.0
     # via aiohttp
 authlib==1.7.2
@@ -38,6 +41,10 @@ botocore==1.43.9
     #   s3transfer
 celery==5.6.3
     # via -r requirements/base.in
+certifi==2026.5.20
+    # via
+    #   httpcore
+    #   httpx
 cffi==2.0.0
     # via cryptography
 click==8.4.0
@@ -58,8 +65,11 @@ cryptography==48.0.0
     #   -r requirements/base.in
     #   authlib
     #   joserfc
+    #   resilience-kit
 fastapi==0.136.1
-    # via -r requirements/base.in
+    # via
+    #   -r requirements/base.in
+    #   resilience-kit
 frozenlist==1.8.0
     # via
     #   aiohttp
@@ -67,12 +77,19 @@ frozenlist==1.8.0
 greenlet==3.5.0
     # via sqlalchemy
 h11==0.16.0
-    # via uvicorn
+    # via
+    #   httpcore
+    #   uvicorn
+httpcore==1.0.9
+    # via httpx
 httptools==0.7.1
     # via uvicorn
+httpx==0.28.1
+    # via resilience-kit
 idna==3.15
     # via
     #   anyio
+    #   httpx
     #   yarl
 itsdangerous==2.2.0
     # via -r requirements/base.in
@@ -101,7 +118,9 @@ propcache==0.5.2
     #   aiohttp
     #   yarl
 pybreaker==1.4.1
-    # via -r requirements/base.in
+    # via
+    #   -r requirements/base.in
+    #   resilience-kit
 pycparser==3.0
     # via cffi
 pydantic==2.13.4
@@ -109,10 +128,13 @@ pydantic==2.13.4
     #   -r requirements/base.in
     #   fastapi
     #   pydantic-settings
+    #   resilience-kit
 pydantic-core==2.46.4
     # via pydantic
 pydantic-settings==2.14.1
-    # via -r requirements/base.in
+    # via
+    #   -r requirements/base.in
+    #   resilience-kit
 pyjwt==2.13.0
     # via -r requirements/base.in
 python-dateutil==2.9.0.post0
@@ -126,6 +148,10 @@ python-dotenv==1.2.2
 pyyaml==6.0.3
     # via uvicorn
 redis==7.4.0
+    # via
+    #   -r requirements/base.in
+    #   resilience-kit
+resilience-kit[audit-postgres,crypto,fastapi,http,redis]==0.1.0rc1
     # via -r requirements/base.in
 s3transfer==0.17.0
     # via boto3
@@ -135,8 +161,11 @@ sqlalchemy[asyncio]==2.0.49
     # via
     #   -r requirements/base.in
     #   alembic
+    #   resilience-kit
 starlette==1.0.0
-    # via fastapi
+    # via
+    #   fastapi
+    #   resilience-kit
 typing-extensions==4.15.0
     # via
     #   aiosignal
