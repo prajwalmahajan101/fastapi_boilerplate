@@ -22,6 +22,16 @@ from typing import Any, Literal
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic_settings.sources import PydanticBaseSettingsSource
+from resilience_kit.runtime import legacy_env_alias
+
+# Translate legacy boilerplate env-var names (FIELD_ENCRYPTION_KEY,
+# CIRCUIT_BREAKER_*, RATE_LIMIT_*, SSRF_*, REDIS_URL, …) into the kit's
+# ``RESILIENCE_*`` equivalents *before* any settings model is built so
+# operators upgrading from pre-M7 .env files keep their existing tuning
+# instead of silently reverting to kit defaults. ``warn=True`` (default)
+# emits one ``DeprecationWarning`` per alias used so .env files get
+# updated. Kit-prefixed names always win on collision.
+legacy_env_alias()
 
 try:
     import boto3
