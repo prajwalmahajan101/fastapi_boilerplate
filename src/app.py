@@ -45,7 +45,6 @@ from src.core.exceptions import register_exception_handlers
 from src.core.middleware.metrics_middleware import MetricsMiddleware
 from src.core.middleware.request_logging import RequestLoggingMiddleware
 from src.core.runtime import configure
-from src.core.utils.crypto import _fernet
 from src.core.utils.logging import setup_logging
 from src.core.utils.redis import close_all_redis_clients, wait_for_redis
 from src.db import close_db_engine, init_db_engine
@@ -64,11 +63,12 @@ async def _app_lifespan(app: FastAPI) -> AsyncIterator[None]:
         Control while the app serves requests.
     """
     configure(settings)
-    # Probe the field-encryption key once at boot. A missing or broken
-    # FERNET configuration would otherwise raise on the first encrypt /
-    # decrypt request and present as a 500 to the caller; failing the
-    # lifespan keeps the process out of the load balancer instead.
-    _fernet()
+    # The kit's ``FernetCipher`` is lazy + env-guarded: in ``prod`` it
+    # refuses to build without ``RESILIENCE_CRYPTO__FIELD_ENCRYPTION_KEY``
+    # set; dev / test fall back to an insecure default with a one-time
+    # warning. The boot-time probe previously here is no longer needed —
+    # if the key is unset the first encrypted-column read/write fails
+    # with ``EncryptionConfigError`` and presents as a startup error.
     # Give Redis a short window to come up before any resilience provider
     # is first called. Once a provider cached an in-memory backend (because
     # the very first ping failed), no probe can rebuild it — a boot-time
