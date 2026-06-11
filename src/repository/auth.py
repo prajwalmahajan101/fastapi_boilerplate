@@ -88,6 +88,14 @@ class APIKeyRepository(BaseRepository[APIKey]):
         row is not locked unnecessarily — matches Django's
         ``select_for_update(of=("self",))``.
 
+        ``populate_existing=True`` is load-bearing: callers typically
+        reach this row via ``User.api_keys`` (``lazy="selectin"``),
+        which puts the ``APIKey`` instance into the session identity
+        map *before* the lock is acquired. Without
+        ``populate_existing``, the post-lock SELECT result is silently
+        discarded in favour of the stale identity-mapped row, so the
+        loser sees ``revoked_at=None`` and double-stamps.
+
         Args:
             api_key_id: Primary key of the row to lock.
 
@@ -99,6 +107,7 @@ class APIKeyRepository(BaseRepository[APIKey]):
             .where(APIKey.id == api_key_id)
             .with_for_update(of=APIKey)
             .limit(1)
+            .execution_options(populate_existing=True)
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
