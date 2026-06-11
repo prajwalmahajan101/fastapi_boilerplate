@@ -6,31 +6,7 @@ below has not changed. Remove an entry the same commit that fixes it.
 
 ## Pre-existing as of `feat/depend-on-resilience-kit` (PR #6) — M8b kit upgrade
 
-These failures reproduce when the affected test file is reset to `main`,
-so they predate the kit upgrade. They only surface against live
-Postgres + Redis (the unit tier stays green), which is why nobody had
-seen them yet — the integration tier had never been run against the
-docker stack on this branch.
-
-### 1. `test_concurrent_revoke_produces_one_winner` — assertion order
-
-- **File:** `tests/integration/service/test_apikey_revoke_concurrency.py`
-- **Failure:** `AssertionError: assert [(True, False), (True, False)] ==
-  [(False, True), (True, False)]`
-- **Cause (suspected):** the test fires two concurrent `revoke()` calls
-  against the same API key and asserts exactly one wins. The observed
-  output shows **both** sessions reporting success, which means either:
-  - **(a)** the row-lock in
-    `src/service/auth.py::APIKeyService.revoke` (commit `67bd56d`) has a
-    race the test catches, OR
-  - **(b)** the assertion is too strict about *which* session wins (the
-    test compares against a fixed `[(False, True), (True, False)]`
-    rather than allowing either order).
-- **Triage:** investigate (a) first. If the row-lock genuinely allows
-  both to succeed, it's a real defect — fix the service, keep the
-  assertion. If it's (b), relax to `sorted(results) == [(False, True),
-  (True, False)]` so either scheduling order passes but a double-winner
-  still fails the test.
+_No tracked pre-existing failures at this time._
 
 ## Reproducing locally
 
