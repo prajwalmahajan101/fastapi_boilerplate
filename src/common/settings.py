@@ -48,7 +48,7 @@ class Settings(CoreSettings):
 
     # ── Application identity ──────────────────────────────────────────
     app_name: str = "FastAPI Boilerplate"
-    app_version: str = "0.1.0"
+    app_version: str = "1.0.0"
 
     # Override the inherited default — every other ``db_*`` knob is inherited.
     db_name: str = "app"

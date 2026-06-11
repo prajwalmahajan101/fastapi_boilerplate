@@ -9,8 +9,9 @@ JSONB-safe shape:
 * :func:`serialize_error_body` — best-effort JSON encode an upstream
   error body for ``APIError.response_body``.
 
-Extracted from ``core/utils/http_client.py`` so the HTTP client module
-itself can shrink toward "just the client".
+Lives next to the audit decorators rather than inside the
+``resilience_kit.http_client`` module so the kit's HTTP client stays
+"just the client" and the audit-shape concerns stay in this repo.
 """
 
 from __future__ import annotations

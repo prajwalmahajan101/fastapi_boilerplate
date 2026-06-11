@@ -66,8 +66,8 @@ ALLOWLIST: set[tuple[str, str]] = {
 def _module_dotted(path: Path) -> str:
     """Return the dotted import path for *path*.
 
-    For ``ROOT/src/core/resilience/cache/provider.py`` the result is
-    ``src.core.resilience.cache.provider``.
+    For ``ROOT/src/core/api_log/dispatch.py`` the result is
+    ``src.core.api_log.dispatch``.
 
     Args:
         path: Absolute path to a Python source file under ``ROOT``.
@@ -125,7 +125,7 @@ def _has_importer(dotted_path: str, symbol: str, self_path: Path) -> bool:
 
     Args:
         dotted_path: Defining module path (e.g.
-            ``"src.core.resilience.cache.provider"``).
+            ``"src.core.api_log.dispatch"``).
         symbol: The public name defined in that module.
         self_path: Path of the defining file, skipped during the scan
             so an in-file reference is not mistaken for an importer.

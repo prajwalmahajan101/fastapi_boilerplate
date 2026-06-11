@@ -9,7 +9,9 @@ cross-cutting infrastructure you'd otherwise rebuild every time:
   shape (`success` / `message` / `data` / `errors` / `request_id`).
 - **Typed exceptions** → HTTP-status registry (extend it from your own code).
 - **Resilience layer** — circuit breaker, retry, cache, and rate-limit, each
-  Redis-backed with an automatic in-memory fallback.
+  Redis-backed with an automatic in-memory fallback. *Provided by
+  [`resilience-kit`](https://pypi.org/project/resilience-kit/); the
+  boilerplate adds the envelope + request-id bridges.*
 - **Structured logging** with request-id propagation + log sanitisation.
 - **API audit log** — fire-and-forget request/response capture (Postgres/Noop).
 - **Async SQLAlchemy** base model / repository / service classes.

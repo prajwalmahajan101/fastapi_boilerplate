@@ -26,12 +26,11 @@ may arrive before `_instance` is set; the lock ensures only one
 builds, and the re-check inside the lock prevents the second one
 from overwriting the first's result.
 
-Replicated by:
-
-- `core/resilience/cache/provider.py`
-- `core/resilience/circuit_breaker/provider.py`
-- `core/resilience/throttle/provider.py`
-- `auth/registry.py` (one-shot warning set guarded by import order)
+Used in-tree by `auth/registry.py` (one-shot warning set guarded by
+import order). `resilience-kit` ships the same async-singleton shape
+inside its cache, circuit-breaker, and throttle providers (see
+[ADR-0003](decisions/0003-outsource-resilience-to-resilience-kit.md));
+the kit's docs are the source of truth for that implementation.
 
 The auth registry itself uses a plain dict because all registration
 happens at module-import time (single-threaded), and reads are

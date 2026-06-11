@@ -38,16 +38,19 @@ once you wire a Prometheus or OTel exporter to the shim hooks.
 
 Every route decorated with `@log_inbound_request(service_name=...)`
 emits one row via the fire-and-forget pipeline in `src/core/api_log/`.
-Outbound HTTP calls through `AsyncAPIClient` are paired with
-`@log_outbound_request`. See [`audit-trail.md`](audit-trail.md) for
-the full pipeline.
+Outbound HTTP calls through `resilience_kit.http_client.AsyncAPIClient`
+are paired with `@log_outbound_request`. See
+[`audit-trail.md`](audit-trail.md) for the full pipeline.
 
 ## Recovery monitor
 
-`src/core/resilience/recovery.py` watches every resilience provider
-whose Redis alias degraded at boot, polls in the background, and
-resets the cached backend once Redis comes back. Audit signal: look
-for `Recovery monitor: alias 'X' recovered`.
+The recovery monitor is owned by `resilience-kit` (see
+[ADR-0003](decisions/0003-outsource-resilience-to-resilience-kit.md));
+the kit polls every resilience provider whose Redis alias degraded at
+boot and resets the cached backend once Redis comes back. The
+boilerplate launches it as a singleton background task in the
+FastAPI lifespan. Audit signal: look for `Recovery monitor: alias 'X'
+recovered`.
 
 ## Health probes
 

@@ -106,55 +106,32 @@ fire-and-forget design rationale.
 
 ## Resilience layer
 
-`src.core.resilience` provides circuit breaker, retry, cache, and
-throttle/rate-limit primitives. Each backend is Redis-backed with an
-**automatic in-memory fallback** if Redis is unreachable; a readiness probe
-(`/readyz`) doubles as the recovery trigger. Wrap outbound calls with the
-`@resilient` / `@retry_with_exponential_backoff` decorators and gate routes
-with `rate_limit(...)` dependencies.
+**Owned by `resilience-kit==0.1.0`** — circuit breaker, retry, cache,
+throttle/rate-limit, the recovery monitor, the async-singleton
+providers, and the in-memory fallback all live in the kit, not in
+this repo. See
+[ADR-0003](decisions/0003-outsource-resilience-to-resilience-kit.md).
 
-### Background recovery monitor
+The boilerplate adds two thin bridges on top of the kit
+(`src/core/middleware/request_id_bridge.py` for request-id
+propagation; `src/app.py::kit_error_handler` for envelope
+translation — kit handlers are deliberately not installed, see
+[ADR-0002](decisions/0002-exception-http-registry.md)) and wires the
+kit's recovery monitor and health-snapshot into the FastAPI lifespan
+and `/readyz`. Concrete operator-facing details — backend selection,
+fallback semantics, scope and global-throttle behaviour, recovery
+triggers — live in [`docs/resilience.md`](resilience.md).
 
-A single `asyncio.Task` (`src.core.resilience.recovery.monitor`) lives
-for the lifetime of the process. While every backend is `ACTIVE` it
-sleeps; once any backend goes `DEGRADED` it `PING`s the configured
-Redis alias and waits for **three consecutive successes** before
-driving recovery, so a flapping Redis cannot flap every backend in
-the registry. The monitor exists for two cases the in-call / readyz
-recovery paths do not cover:
+`src.core` re-exports the kit's public surface so call sites stay
+short:
 
-* **Idle workers** — a worker servicing no traffic and not being
-  polled by `/readyz` would otherwise stay degraded after a Redis
-  blip until the next request arrived.
-* **Boot-time fallback** — a backend that returned the bare
-  `InMemory*` implementation because the very first PING failed has
-  no Redis client of its own; the monitor pings the alias directly
-  and dispatches `reset_backend(alias)` so the next `get_*` call
-  rebuilds against the now-live Redis.
+```python
+from src.core import circuit_breaker, resilient, retry_on_failure
+from src.core import rate_limit, FernetCipher, assert_public_url
+```
 
-Concrete consumers (cache primers, session-token re-primers) register
-warm-up hooks via `register_warm_hook(fn)`; they fan out after **any**
-backend successfully re-attaches.
-
-### Global vs per-identifier throttle scope
-
-The default `rate_limit(scope, rate)` dependency uses a per-identifier
-sliding window backed by a sorted-set Lua script (one
-`ZREMRANGEBYSCORE` + one `ZCARD` + one `ZADD` per request). The
-precision is exact: a burst at the edge of two fixed windows cannot
-pass. This is the right tool for per-(user|endpoint|IP|tier) buckets.
-
-For high-RPS *global* gates — cluster-wide outbound-call concurrency
-caps, bounded expensive-job queues — the sorted-set cost adds up. A
-second dependency, `fixed_window_rate_limit(scope, rate)`, routes the
-decision through an O(1) sliding-window-counter Lua script
-(one `GET` per neighbouring fixed-window key + one `INCR` + one
-`EXPIRE`). The script lives in
-`src.core.resilience.throttle.lua_scripts.GLOBAL_THROTTLE_LUA_SCRIPT`;
-its SHA is cached process-wide via
-`src.core.resilience.throttle.global_lua`. The small precision loss
-at window boundaries is the price you pay for the cheaper round-trip.
-Both APIs return the same `ThrottleResult`.
+`rate_limit` is also importable from `resilience_kit.adapters.fastapi`
+— every real call site under `src/api/v1/` uses that one.
 
 ## Background tasks (Celery)
 
