@@ -9,6 +9,11 @@ Transient SES errors (throttling, internal failures, request expiry)
 surface as ``TransientError`` so ``@resilient("ses")`` retries them.
 Permanent failures (rejected sender, unverified identity, configuration
 problems) surface as ``SESError`` and propagate without retry.
+
+Dormant: not currently imported by any request-path file. Uncovered
+until a feature wires the SES helpers; do not import from a request-
+path file without adding a matching integration test. Tracked by
+``tests/unit/scripts/test_no_dormant_imports.py``.
 """
 
 from __future__ import annotations

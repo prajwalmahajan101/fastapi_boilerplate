@@ -11,6 +11,11 @@ The script forwards every remaining argv token to Celery's CLI so any
 imported from ``src.tasks`` (autodiscover entry below) so domain task
 modules registered via :func:`src.core.tasks.register_task` are visible
 to the worker without per-module wiring here.
+
+Dormant: CLI entry, never imported by the request path. Covered via
+``python -m src.management.run_worker --help`` smoke test only (see
+``tests/integration/management/test_run_worker_smoke.py``). Tracked by
+``tests/unit/scripts/test_no_dormant_imports.py``.
 """
 
 from __future__ import annotations

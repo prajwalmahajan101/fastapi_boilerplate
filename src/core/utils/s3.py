@@ -4,6 +4,11 @@ Every method runs the boto3 call inside ``asyncio.to_thread`` so the
 event loop is never blocked. Each operation is wrapped in
 ``@resilient("s3")`` so transient failures retry and a streak of
 failures opens the circuit breaker.
+
+Dormant: not currently imported by any request-path file. Uncovered
+until a feature wires the S3 helpers; do not import from a request-path
+file without adding a matching integration test. Tracked by
+``tests/unit/scripts/test_no_dormant_imports.py``.
 """
 
 from __future__ import annotations
