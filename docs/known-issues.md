@@ -6,31 +6,13 @@ below has not changed. Remove an entry the same commit that fixes it.
 
 ## Pre-existing as of `feat/depend-on-resilience-kit` (PR #6) — M8b kit upgrade
 
-Both failures reproduce when the affected test file is reset to `main`,
+These failures reproduce when the affected test file is reset to `main`,
 so they predate the kit upgrade. They only surface against live
 Postgres + Redis (the unit tier stays green), which is why nobody had
 seen them yet — the integration tier had never been run against the
 docker stack on this branch.
 
-### 1. `test_first_signin_attaches_default_role` — `MissingGreenlet`
-
-- **File:** `tests/integration/auth/test_oauth_default_role.py`
-- **Failure:** `sqlalchemy.exc.MissingGreenlet: greenlet_spawn has not been
-  called; can't call await_only() here. Was IO attempted in an unexpected
-  place?`
-- **Cause (suspected):** the test fixture mixes sync SQLAlchemy with the
-  async OAuth signin path. Either the fixture's session is sync and the
-  code-under-test wants async, or a `selectinload` triggers a lazy fetch
-  outside the async context manager.
-- **Scope:** affects `test_first_signin_attaches_default_role` directly;
-  the other two cases in the same file (`test_returning_user_keeps_existing_roles`,
-  `test_missing_default_role_logs_warning`) error from the same root in
-  setup.
-- **Investigation start:** read the test's session fixture vs.
-  `src/auth/oauth_google.py::authenticate` — check that both use the
-  same async session shape.
-
-### 2. `test_concurrent_revoke_produces_one_winner` — assertion order
+### 1. `test_concurrent_revoke_produces_one_winner` — assertion order
 
 - **File:** `tests/integration/service/test_apikey_revoke_concurrency.py`
 - **Failure:** `AssertionError: assert [(True, False), (True, False)] ==

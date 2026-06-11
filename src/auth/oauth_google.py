@@ -25,6 +25,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Depends, Request
+from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.base import AuthResult
@@ -38,6 +39,7 @@ from resilience_kit.adapters.fastapi import rate_limit
 from resilience_kit.throttle import Scope
 from src.core.responses import SuccessEnvelope, SuccessResponse
 from src.core.runtime import get_settings
+from src.model.auth import user_roles
 from src.repository.auth import RoleRepository, UserRepository
 from src.schema.auth import TokenPair
 
@@ -147,6 +149,12 @@ async def _attach_default_roles(session: AsyncSession, user: "User") -> None:
     never be observed. Mirrors Django's
     ``CustomAccountAdapter.save_user`` / ``assign_default_roles`` path.
 
+    Writes directly to the ``user_roles`` association table instead of
+    mutating ``user.roles``: appending to the relationship on a
+    just-flushed instance triggers SQLAlchemy's sync-IO loader to
+    initialise the collection, which raises ``MissingGreenlet`` under
+    an async session.
+
     Args:
         session: The active async session inside the OAuth transaction.
         user: The freshly-inserted user row (post-``flush``).
@@ -163,7 +171,10 @@ async def _attach_default_roles(session: AsyncSession, user: "User") -> None:
             user.id,
         )
         return
-    user.roles.extend(roles)
+    await session.execute(
+        insert(user_roles),
+        [{"user_id": user.id, "role_id": r.id} for r in roles],
+    )
     await session.flush()
 
 
