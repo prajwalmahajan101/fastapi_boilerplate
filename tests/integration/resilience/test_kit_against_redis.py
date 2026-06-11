@@ -71,9 +71,15 @@ def live_client() -> Iterator[TestClient]:
 
 
 def test_security_headers_present_on_live_response(
-    live_client: TestClient,
+    live_client: TestClient, redis_client
 ) -> None:
-    """The kit's ``SecurityHeadersMiddleware`` reaches the response."""
+    """The kit's ``SecurityHeadersMiddleware`` reaches the response.
+
+    Takes the ``redis_client`` fixture so a preceding throttle-exhausting
+    test in the same suite run cannot 429 the lone request here — the
+    fixture flushes the Redis db before the test starts.
+    """
+    del redis_client  # flushdb at setup is the point
     response = live_client.get("/api/v1/hello")
     assert response.status_code == 200
     assert response.headers.get("X-Content-Type-Options") == "nosniff"
