@@ -40,6 +40,5 @@ def test_run_worker_help_exits_clean() -> None:
     )
     # Celery's click-based CLI prints a "Usage:" banner to stdout.
     assert "Usage:" in result.stdout, (
-        f"run_worker --help did not print a usage banner; "
-        f"stdout={result.stdout!r}"
+        f"run_worker --help did not print a usage banner; stdout={result.stdout!r}"
     )

@@ -99,7 +99,9 @@ def _iter_src_files() -> list[Path]:
     return sorted(files)
 
 
-@pytest.mark.parametrize("path", _iter_src_files(), ids=lambda p: str(p.relative_to(_SRC_ROOT.parent)))
+@pytest.mark.parametrize(
+    "path", _iter_src_files(), ids=lambda p: str(p.relative_to(_SRC_ROOT.parent))
+)
 def test_no_dormant_imports(path: Path) -> None:
     hits = _offenders(path)
     assert hits == [], (
