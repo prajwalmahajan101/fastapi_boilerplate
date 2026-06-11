@@ -147,5 +147,3 @@ forks that don't ship dormant code can either lower the gate in
 `pytest.ini` or `omit` the dormant paths from `[tool.coverage.run]`.
 Tracked as ISSUE-038; the ratchet plan is to keep the gate honest and
 fill coverage in 1.x.
-</content>
-</invoke>
