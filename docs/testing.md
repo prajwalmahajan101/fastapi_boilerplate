@@ -60,8 +60,6 @@ pytest
 
 ## Coverage
 
-Wired but **non-blocking** — no `--cov-fail-under` yet.
-
 ```bash
 pytest --cov=src --cov-report=term-missing --cov-report=html
 open htmlcov/index.html
@@ -69,26 +67,33 @@ open htmlcov/index.html
 
 Coverage configuration lives in `pyproject.toml` under
 `[tool.coverage.*]`: source = `src`, branch coverage on, omits
-`__init__.py` and `src/management/init_db.py`.
+`__init__.py` and `src/management/init_db.py`. The overall
+`fail_under = 85` floor lives there too.
 
-### Future coverage gates
+### Coverage gates (enforced)
 
-These thresholds are not enforced today — they're the target the
-suite is being populated against. Add `--cov-fail-under` (and the
-per-package floors below via `coverage-fail-under-package` or the
-`Makefile`) once each target is reachable.
+`pytest --cov` fails the run when the overall floor is missed —
+the gate is wired through `pytest.ini` (`addopts = --cov-fail-under=85`)
+and `pyproject.toml` (`[tool.coverage.report] fail_under = 85`). CI
+enforces the per-package floors as separate
+`coverage report --include=<glob> --fail-under=N` steps after the
+combined run (see `.github/workflows/test.yml`).
 
-| Scope | Target |
-|---|---|
-| Overall | **85%** |
-| `src/core/` | **90%** |
-| `src/core/api_log/` | **95%** |
-| `src/api/`, `src/service/`, `src/repository/` | **80%** |
+| Scope | Floor | Notes |
+|---|---|---|
+| Overall | **85%** | `pytest --cov` (uses `addopts`) |
+| `src/core/` | **90%** | CI step: `coverage report --include="src/core/*" --fail-under=90` |
+| `src/core/api_log/` | **95%** | CI step: `coverage report --include="src/core/api_log/*" --fail-under=95` |
+| `src/api/`, `src/service/`, `src/repository/` | **80%** | CI step: `coverage report --include="src/api/*,src/service/*,src/repository/*" --fail-under=80` |
 
 The `api_log` floor is intentionally higher than the rest of `core`
 because the audit pipeline is fire-and-forget — a regression that
 silently swallows logs is invisible at runtime, so coverage is the
 only safety net.
+
+The unit-only fast loop (`pytest -m unit` without `--cov`) is
+unaffected: `--cov-fail-under` only triggers when `--cov` is on the
+command line.
 
 ## Debugging a failing integration test
 
@@ -114,15 +119,19 @@ only safety net.
 
 ## CI
 
-There is no CI workflow shipped with this repo yet. The suite is
-designed so a future workflow can simply run:
+`.github/workflows/test.yml` runs on every push to `main` and every
+pull request:
 
-```bash
-pytest -m unit --cov=src --cov-report=xml
-docker compose up postgres redis db-init -d
-pytest -m integration --cov=src --cov-append --cov-report=xml
-pytest -m e2e --cov=src --cov-append --cov-report=xml
-```
-
-…and upload `coverage.xml` + `htmlcov/`. When you wire that up, also
-introduce the future gates above.
+1. **lint job** — `ruff check .` + `ruff format --check .`.
+2. **test job** — spins `postgres:16-alpine` and `redis:7-alpine` as
+   GitHub Actions service containers, exports the env-var shape from
+   [`known-issues.md`](known-issues.md) (`DB_*`, `TEST_DATABASE_URL`,
+   `TEST_REDIS_URL`, `RESILIENCE_CRYPTO__*`), mints a fresh Fernet
+   key, runs `alembic upgrade head`, then
+   `pytest --cov --cov-report=term-missing --cov-report=xml`
+   (exercises all three tiers because the service containers satisfy
+   the integration / e2e auto-skip gate).
+3. **per-package floors** — three follow-up
+   `coverage report --include=<glob> --fail-under=N` steps enforce
+   the table above.
+4. **artifact** — `coverage.xml` is uploaded on every run.

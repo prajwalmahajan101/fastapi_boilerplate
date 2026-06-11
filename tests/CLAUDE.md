@@ -75,15 +75,22 @@ naming its scope, the matching production-code path, and a recipe.
 
 ## Coverage
 
-Wired but **non-blocking**. Generate locally:
+Enforced — `pytest --cov` fails the run below the floor
+(`pytest.ini` `addopts = --cov-fail-under=85` +
+`pyproject.toml` `[tool.coverage.report] fail_under = 85`). Per-package
+floors are enforced in CI as follow-up
+`coverage report --include=<glob> --fail-under=N` steps. The unit-only
+fast loop (`pytest -m unit` without `--cov`) is unaffected. Generate
+locally:
 
 ```bash
 pytest --cov=src --cov-report=html --cov-report=term-missing
 open htmlcov/index.html
 ```
 
-The future coverage gates — applied once the suite is populated — are
-recorded in [`docs/testing.md`](../docs/testing.md):
+The enforced coverage floors — overall via pytest/coverage config,
+per-package via CI follow-up steps — are recorded in
+[`docs/testing.md`](../docs/testing.md):
 
 | Scope | Target |
 |---|---|
