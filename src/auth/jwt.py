@@ -251,7 +251,10 @@ async def check_blacklist(
 
     alias = get_settings().jwt_blacklist_cache_alias
     try:
-        cache = await get_cache(alias)
+        # ``get_cache`` is synchronous since resilience-kit 0.1.0 (was
+        # ``async`` in 0.1.0rc1); awaiting the returned ``AsyncCache``
+        # instance fails closed and metric-spams the refresh path.
+        cache = get_cache(alias)
         hit = await cache.get(_BLACKLIST_PREFIX + jti)
     except Exception as exc:  # noqa: BLE001
         logger.warning(
@@ -301,7 +304,7 @@ async def blacklist_jti(jti: str, *, ttl_seconds: int | None = None) -> None:
     settings = get_settings()
     ttl = ttl_seconds if ttl_seconds is not None else settings.jwt_refresh_ttl_seconds
     try:
-        cache = await get_cache(settings.jwt_blacklist_cache_alias)
+        cache = get_cache(settings.jwt_blacklist_cache_alias)
         await cache.set(_BLACKLIST_PREFIX + jti, "1", ttl=ttl)
     except Exception as exc:  # noqa: BLE001
         logger.warning("JWT blacklist write failed (%s).", exc)

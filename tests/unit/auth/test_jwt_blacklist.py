@@ -43,7 +43,7 @@ def _stub_settings(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _patch_cache(monkeypatch: pytest.MonkeyPatch, cache: _StubCache) -> None:
-    async def _get_cache(_alias: str) -> _StubCache:
+    def _get_cache(_alias: str) -> _StubCache:
         return cache
 
     monkeypatch.setattr("resilience_kit.cache.provider.get_cache", _get_cache)
