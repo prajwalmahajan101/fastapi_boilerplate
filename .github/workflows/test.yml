@@ -7,13 +7,78 @@ on:
     branches: [main]
 
 jobs:
-  test:
-    name: ruff + pytest (Python ${{ matrix.python-version }})
+  lint:
+    name: ruff (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements/dev.txt
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements/base.txt -r requirements/dev.txt
+      - name: Ruff (lint)
+        run: ruff check .
+      - name: Ruff (format check)
+        run: ruff format --check .
+
+  test:
+    name: pytest (unit + integration + e2e, Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12"]
+
+    # Service containers mirror docs/known-issues.md's repro recipe so
+    # the integration + e2e tiers exercise real Postgres / Redis here
+    # instead of auto-skipping like they did when CI only ran unit.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # App-level config: pointed at the service containers above.
+      DB_HOST: localhost
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: postgres
+      # Same shape the integration / e2e conftests already read.
+      TEST_DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/postgres
+      TEST_REDIS_URL: redis://localhost:6379/0
+      # Resilience-kit crypto: a deterministic Fernet key is fine for CI;
+      # the test stack never persists ciphertext beyond the job.
+      RESILIENCE_CRYPTO__ENVIRONMENT: dev
 
     steps:
       - uses: actions/checkout@v4
@@ -30,11 +95,30 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements/base.txt -r requirements/dev.txt
 
-      - name: Ruff (lint)
-        run: ruff check .
+      - name: Mint Fernet key for the run
+        run: |
+          echo "RESILIENCE_CRYPTO__FIELD_ENCRYPTION_KEY=$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')" >> "$GITHUB_ENV"
 
-      - name: Ruff (format check)
-        run: ruff format --check .
+      - name: Apply migrations
+        run: alembic upgrade head
 
-      - name: "Pytest (make test - unit + integration + e2e; integration auto-skips with no services)"
-        run: make test
+      - name: Pytest with coverage (unit + integration + e2e)
+        run: |
+          pytest --cov --cov-report=term-missing --cov-report=xml
+
+      - name: Coverage floor — src/core/ (≥90%)
+        run: coverage report --include="src/core/*" --fail-under=90
+
+      - name: Coverage floor — src/core/api_log/ (≥95%)
+        run: coverage report --include="src/core/api_log/*" --fail-under=95
+
+      - name: Coverage floor — src/api/ src/service/ src/repository/ (≥80%)
+        run: coverage report --include="src/api/*,src/service/*,src/repository/*" --fail-under=80
+
+      - name: Upload coverage.xml
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          if-no-files-found: ignore
