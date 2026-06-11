@@ -9,6 +9,12 @@ omit = [
 [tool.coverage.report]
 skip_covered = true
 show_missing = true
+# Overall fail-under floor; matches the addopts gate in pytest.ini so a
+# direct `coverage report` and `pytest --cov` enforce the same threshold.
+# Per-package floors (core 90%, api_log 95%, api/service/repository 80%)
+# are enforced in CI via separate `coverage report --include=...
+# --fail-under=N` steps — see .github/workflows/test.yml.
+fail_under = 85
 exclude_lines = [
     "pragma: no cover",
     "if TYPE_CHECKING:",

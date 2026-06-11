@@ -4,6 +4,11 @@ Off by default; flipped on via ``CoreSettings.log_function_calls=True``
 (typically ``LOG_FUNCTION_CALLS=true`` in dev). ERROR-level failure logs
 fire unconditionally; entry/exit are DEBUG-only and zero-cost when the
 flag is off.
+
+Dormant: not currently applied to any request-path function. Uncovered
+until a feature decorates a real call site; do not import from a
+request-path file without adding a matching test. Tracked by
+``tests/unit/scripts/test_no_dormant_imports.py``.
 """
 
 from __future__ import annotations

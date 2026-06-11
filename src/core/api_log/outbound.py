@@ -5,6 +5,11 @@ emits one ``api_logs`` row (success or failure) via the bounded
 background queue. Reads request/response metadata from
 :data:`outbound_response_meta_ctx` so the decorator never has to inspect
 the wrapped function's signature.
+
+Dormant: not currently applied to any service. Uncovered until a
+service decorates an outbound call with ``@log_outbound_request``; do
+not import from a request-path file without adding a matching test.
+Tracked by ``tests/unit/scripts/test_no_dormant_imports.py``.
 """
 
 from __future__ import annotations

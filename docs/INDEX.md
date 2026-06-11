@@ -59,3 +59,19 @@ Per-module CLAUDE.md files document module-specific conventions:
 - [`../src/service/CLAUDE.md`](../src/service/CLAUDE.md) — business logic
 - [`../src/management/CLAUDE.md`](../src/management/CLAUDE.md) — operator CLIs
 - [`../tests/CLAUDE.md`](../tests/CLAUDE.md) — tests
+
+## Dormant modules
+
+Modules that ship for forks to wire in but are not on a request path
+today. They carry a ``Dormant:`` callout in their module docstring and
+are gated by ``tests/unit/scripts/test_no_dormant_imports.py``: any
+import of one of these from ``src/`` fails the test until the import
+site lands with a matching integration test.
+
+| Module | Re-activation precondition |
+|---|---|
+| [`../src/core/utils/s3.py`](../src/core/utils/s3.py) | A feature wires the S3 helpers from a service / route. |
+| [`../src/core/utils/ses.py`](../src/core/utils/ses.py) | A feature wires the SES helpers from a service / route. |
+| [`../src/core/utils/function_logger.py`](../src/core/utils/function_logger.py) | A service decorates a function with `@log_function`. |
+| [`../src/core/api_log/outbound.py`](../src/core/api_log/outbound.py) | A service decorates an outbound call with `@log_outbound_request`. |
+| [`../src/management/run_worker.py`](../src/management/run_worker.py) | CLI entry; covered only via the `--help` smoke test. |
