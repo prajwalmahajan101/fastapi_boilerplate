@@ -30,3 +30,19 @@ patterns:
 
   - pattern: '\bMODEL_RESOURCE_MAP\b'
     replacement: 'MODEL_RESOURCE_MAP was removed; use `src.core.rbac.register_resource()` from a module-level call site or app factory hook.'
+
+  # Kit migration (PR #6 / ADR-0003). src/core/resilience/*,
+  # src/core/utils/http_client/, and src/core/utils/crypto.py were
+  # removed; the kit owns the implementations. src.core re-exports
+  # keep the historical import paths stable.
+  - pattern: 'src\.core\.resilience|src/core/resilience'
+    replacement: '`src.core.resilience` was removed in the resilience-kit migration. Import from `resilience_kit` directly, or use the re-exports on `src.core` (`circuit_breaker`, `resilient`, `retry_on_failure`, `rate_limit`). See ADR-0003.'
+
+  - pattern: 'core\.utils\.http_client|core/utils/http_client'
+    replacement: '`AsyncAPIClient` moved to `resilience_kit.http_client` in the kit migration. Import from there. See ADR-0003.'
+
+  - pattern: 'core\.utils\.crypto|core/utils/crypto'
+    replacement: '`FernetCipher` moved to `resilience_kit.crypto`; `src.core` re-exports `FernetCipher` for convenience. See ADR-0003.'
+
+  - pattern: 'src\.core\.utils\.ssrf|src/core/utils/ssrf'
+    replacement: 'The SSRF guard moved to `resilience_kit.ssrf` (`assert_public_url`, `ssrf_guard`); `src.core` re-exports `assert_public_url`. See ADR-0003.'
