@@ -57,20 +57,21 @@ unauthenticated `/auth/*` surface. The bucket is namespaced as
 
 ## Outbound HTTP — SSRF + allow-list
 
-Two layers gate every outbound HTTP call made through `AsyncAPIClient`:
+Two layers gate every outbound HTTP call made through
+`resilience_kit.http_client.AsyncAPIClient`:
 
-1. **SSRF guard with DNS pinning.** `resolve_and_validate(url)` rejects
-   non-`http`/`https` schemes and any URL that resolves to a non-public
-   address (RFC1918, loopback, link-local, multicast, reserved). It
-   returns the resolved IP set; `AsyncAPIClient.request` *and*
-   `AsyncAPIClient.download_bytes` then pin that set on a `ContextVar`
-   and a custom aiohttp resolver returns *only* those IPs at dispatch
-   time. Without the pin, a malicious zone could return a public IP
-   at validation and a private one at the actual request (classic
-   DNS-rebinding TOCTOU). New outbound callsites must wrap their
-   dispatch in `core.utils.ssrf.ssrf_guard(url, check_ssrf=...)` rather
-   than reimplementing the validate → pin → reset sequence — that
-   helper is the single source of truth for the TOCTOU closure.
+1. **SSRF guard with DNS pinning.** `resilience_kit.ssrf.assert_public_url`
+   (re-exported on `src.core`) rejects non-`http`/`https` schemes and
+   any URL that resolves to a non-public address (RFC1918, loopback,
+   link-local, multicast, reserved) and returns the resolved IP set;
+   `AsyncAPIClient.request` *and* `AsyncAPIClient.download_bytes` then
+   pin that set on a `ContextVar` and a custom aiohttp resolver returns
+   *only* those IPs at dispatch time. Without the pin, a malicious
+   zone could return a public IP at validation and a private one at
+   the actual request (classic DNS-rebinding TOCTOU). The kit's
+   `ssrf_guard(url, check_ssrf=...)` helper is the single source of
+   truth for the validate → pin → reset closure; new outbound
+   callsites should use it rather than reimplementing the sequence.
 
 2. **Outbound URL allow-list.** `outbound_url_allowlist` is a positive
    list of hosts the service is allowed to call:
@@ -91,9 +92,10 @@ Two layers gate every outbound HTTP call made through `AsyncAPIClient`:
 
 ## SSRF protection
 
-`core.utils.ssrf.assert_public_url` (and the HTTP client's `check_ssrf`
-flag) block requests to private / link-local / loopback addresses. Toggle
-with `SSRF_BLOCK_PRIVATE_IPS` (default on).
+`resilience_kit.ssrf.assert_public_url` — also importable as
+`from src.core import assert_public_url` — (and the HTTP client's
+`check_ssrf` flag) block requests to private / link-local / loopback
+addresses. Toggle with `SSRF_BLOCK_PRIVATE_IPS` (default on).
 
 ## Encryption at rest
 

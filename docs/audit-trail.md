@@ -30,9 +30,10 @@ Body capture is toggleable: `api_log_capture_request_body` /
 
 ## Outbound
 
-`AsyncAPIClient` (in `src/core/utils/http_client/`) wraps the
-outbound HTTP path and pairs each call with a logged row carrying
-the destination URL, request/response payloads, and status.
+`resilience_kit.http_client.AsyncAPIClient` (now kit-owned, see
+[ADR-0003](decisions/0003-outsource-resilience-to-resilience-kit.md))
+wraps the outbound HTTP path and pairs each call with a logged row
+carrying the destination URL, request/response payloads, and status.
 
 ## Dispatch
 

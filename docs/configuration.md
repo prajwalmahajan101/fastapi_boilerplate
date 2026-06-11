@@ -54,7 +54,7 @@ sees the resolved profile instance.
 | `auth_enabled_providers` | Ordered list of active auth providers — see [`authentication.md`](authentication.md). |
 | `cache_key_prefix` | Prepended to every Redis cache key. Two deployments sharing a Redis cluster MUST set distinct prefixes. Default `"app"`. |
 | `circuit_breaker_backend` | Selects `auto` / `redis` / `memory` / `pybreaker` — see [`resilience.md`](resilience.md). |
-| `outbound_url_allowlist` | Positive list of hosts `AsyncAPIClient` may call. Empty / `"*"` is permissive. See [`security.md`](security.md). |
+| `outbound_url_allowlist` | Positive list of hosts `resilience_kit.http_client.AsyncAPIClient` may call. Empty / `"*"` is permissive. See [`security.md`](security.md). |
 
 ## Settings catalog
 

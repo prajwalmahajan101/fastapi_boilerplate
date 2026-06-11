@@ -117,7 +117,7 @@ from src.core.api_log import log_inbound_request
 from src.core.db.dependencies import get_session
 from src.core.db.transaction import atomic
 from src.core.rbac import RequireResource
-from src.core.resilience.throttle import rate_limit
+from resilience_kit.adapters.fastapi import rate_limit
 from src.core.responses import SuccessEnvelope, SuccessResponse
 from src.repository.order import OrderRepository
 from src.schema.order import OrderCreate, OrderRead
