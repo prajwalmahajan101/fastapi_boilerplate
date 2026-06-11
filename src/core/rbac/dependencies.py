@@ -27,7 +27,9 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from fastapi import Depends, Request
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.db.dependencies import get_session
 from src.core.exceptions.auth import PermissionDeniedError
 
 _current_user_dep: Callable[..., Awaitable[Any]] | None = None
@@ -49,8 +51,16 @@ def set_current_user_dependency(dep: Callable[..., Awaitable[Any]]) -> None:
     _current_user_dep = dep
 
 
-async def _resolve_current_user(request: Request) -> Any:
+async def _resolve_current_user(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> Any:
     """Forward to the registered resolver.
+
+    The session is resolved through FastAPI's dependency pipeline and
+    forwarded explicitly: the resolver is invoked as a plain coroutine
+    here, so a ``Depends(get_session)`` default on the registered
+    callable would never be unpacked.
 
     Raises:
         RuntimeError: When no ``current_user`` dependency has been
@@ -65,7 +75,7 @@ async def _resolve_current_user(request: Request) -> Any:
             "src.core.rbac.set_current_user_dependency(...) before "
             "any route runs."
         )
-    return await _current_user_dep(request)
+    return await _current_user_dep(request, session)
 
 
 def user_has_permission(
