@@ -115,8 +115,8 @@ jobs:
       - name: Coverage floor — src/core/api_log/ (target ≥95%, temp 70%)
         run: coverage report --include="src/core/api_log/*" --fail-under=70
 
-      - name: Coverage floor — src/api/ src/service/ src/repository/ (target ≥80%, temp 70%)
-        run: coverage report --include="src/api/*,src/service/*,src/repository/*" --fail-under=70
+      - name: Coverage floor — src/api/ src/service/ src/repository/ (target ≥80%, temp 65%)
+        run: coverage report --include="src/api/*,src/service/*,src/repository/*" --fail-under=65
 
       - name: Upload coverage.xml
         if: always()

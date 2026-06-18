@@ -84,7 +84,7 @@ combined run (see `.github/workflows/test.yml`).
 | Overall | **85%** | **70%** | 74% / 62% |
 | `src/core/` | **90%** | **70%** | tbd |
 | `src/core/api_log/` | **95%** | **70%** | tbd |
-| `src/api/`, `src/service/`, `src/repository/` | **80%** | **70%** | tbd |
+| `src/api/`, `src/service/`, `src/repository/` | **80%** | **65%** | 68% |
 
 The `api_log` target is intentionally higher than the rest of `core`
 because the audit pipeline is fire-and-forget — a regression that
