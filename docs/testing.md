@@ -68,28 +68,59 @@ open htmlcov/index.html
 Coverage configuration lives in `pyproject.toml` under
 `[tool.coverage.*]`: source = `src`, branch coverage on, omits
 `__init__.py` and `src/management/init_db.py`. The overall
-`fail_under = 85` floor lives there too.
+`fail_under` floor lives there too.
 
 ### Coverage gates (enforced)
 
 `pytest --cov` fails the run when the overall floor is missed —
-the gate is wired through `pytest.ini` (`addopts = --cov-fail-under=85`)
-and `pyproject.toml` (`[tool.coverage.report] fail_under = 85`). CI
+the gate is wired through `pytest.ini` (`addopts = --cov-fail-under=...`)
+and `pyproject.toml` (`[tool.coverage.report] fail_under = ...`). CI
 enforces the per-package floors as separate
 `coverage report --include=<glob> --fail-under=N` steps after the
 combined run (see `.github/workflows/test.yml`).
 
-| Scope | Floor | Notes |
-|---|---|---|
-| Overall | **85%** | `pytest --cov` (uses `addopts`) |
-| `src/core/` | **90%** | CI step: `coverage report --include="src/core/*" --fail-under=90` |
-| `src/core/api_log/` | **95%** | CI step: `coverage report --include="src/core/api_log/*" --fail-under=95` |
-| `src/api/`, `src/service/`, `src/repository/` | **80%** | CI step: `coverage report --include="src/api/*,src/service/*,src/repository/*" --fail-under=80` |
+| Scope | Target | Temp floor | Last measured (CI / local) |
+|---|---|---|---|
+| Overall | **85%** | **70%** | 74% / 62% |
+| `src/core/` | **90%** | **70%** | tbd |
+| `src/core/api_log/` | **95%** | **70%** | tbd |
+| `src/api/`, `src/service/`, `src/repository/` | **80%** | **70%** | tbd |
 
-The `api_log` floor is intentionally higher than the rest of `core`
+The `api_log` target is intentionally higher than the rest of `core`
 because the audit pipeline is fire-and-forget — a regression that
 silently swallows logs is invisible at runtime, so coverage is the
 only safety net.
+
+### Coverage roadmap (climb back to targets)
+
+Floors were temporarily lowered to 70% after Phase C marked five
+modules dormant and the overall figure dropped to 74% (CI). Restore
+in this order — biggest gap-to-target first, weighted by risk:
+
+1. **`src/core/api_log/`** → 95%. Largest gaps: `backends/postgres.py`
+   (~22%), `outbound.py` (~20%), `factory.py` (~32%). Wire an
+   integration test that posts through the FastAPI app with the
+   Postgres backend enabled and asserts a row appears; add a unit
+   suite around `factory.build_backend` covering the noop / postgres
+   branches and misconfiguration paths.
+2. **`src/api/`, `src/service/`, `src/repository/`** → 80%.
+   `src/api/v1/auth_jwt.py` is at 0% — add e2e for login → refresh →
+   logout against the real JWT auth provider. `service/auth.py` (44%)
+   and `repository/auth.py` (53%) need integration coverage for the
+   user-lookup + token-blacklist paths.
+3. **`src/core/`** → 90%. Backfill `base/repository.py` (~22%),
+   `base/service.py` (~29%), `utils/s3.py` / `utils/ses.py` /
+   `utils/redis.py` (all ~20–30%). Use integration tests against the
+   real Postgres for `base/*`; mock the AWS clients for `utils/s3`
+   and `utils/ses` (boundary mocks only — assert request payload
+   shape, not internal calls).
+4. **Overall** → 85%. Falls out of (1)–(3); ratchet
+   `pytest.ini` / `pyproject.toml` / workflow back up one bracket at
+   a time (70 → 75 → 80 → 85) as each tier lands so a regression
+   can't silently re-open the gap.
+
+Track each bump as a `test:` commit and update the "Last measured"
+column above in the same change.
 
 The unit-only fast loop (`pytest -m unit` without `--cov`) is
 unaffected: `--cov-fail-under` only triggers when `--cov` is on the
