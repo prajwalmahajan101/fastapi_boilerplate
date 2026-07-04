@@ -54,6 +54,27 @@ registry, where the kit's `PrometheusMetricsSink` also registers). Pair it
 with `RESILIENCE_METRICS_SINK=prometheus`. The mount is excluded from the
 OpenAPI schema.
 
+The endpoint exposes internal operational state (resilience breaker /
+throttle / cache gauges, request counters, process internals), so it is
+**not anonymous**: it is a raw ASGI mount wrapped in `BearerTokenGuard`
+(`src/core/asgi_guard.py`) and requires a shared secret. Set
+`METRICS_AUTH_TOKEN` (from your secret manager, never in source) — the app
+**refuses to boot** the endpoint if the flag is on but the token is unset.
+Scrapers must send `Authorization: Bearer <token>`; in Prometheus:
+
+```yaml
+scrape_configs:
+  - job_name: my-service
+    authorization:
+      type: Bearer
+      credentials: "<METRICS_AUTH_TOKEN>"   # or credentials_file
+    static_configs:
+      - targets: ["my-service:8000"]
+```
+
+Treat the bearer token as one layer: also bind the scrape target to an
+internal-only network/interface where the deployment allows it.
+
 `MetricsMiddleware` (`src/core/middleware/metrics_middleware.py`) samples
 per-request duration into the shim; toggle with
 `metrics_middleware_enabled` (off by default).

@@ -43,6 +43,7 @@ import src.auth  # noqa: F401 — import-time side-effect wires RBAC's current-u
 from src.common.openapi_metadata import API_DESCRIPTION, TAGS_METADATA
 from src.common.settings import settings
 from src.core.api_log import close_repository, init_repository
+from src.core.asgi_guard import BearerTokenGuard
 from src.core.exceptions import register_exception_handlers
 from src.core.middleware.metrics_middleware import MetricsMiddleware
 from src.core.middleware.request_id_bridge import RequestIdBridgeMiddleware
@@ -192,10 +193,26 @@ def create_app() -> FastAPI:
     # prometheus``) registers its collectors, plus anything the
     # ``src.core.metrics`` shim forwards. A raw ASGI mount, so it never
     # appears in the OpenAPI schema.
+    #
+    # The mount exposes internal operational state (resilience breaker /
+    # throttle / cache gauges, request counters, process internals), so it
+    # is gated behind a shared-secret bearer token — the raw ASGI mount
+    # bypasses the FastAPI dependency system the privileged health probes
+    # use, so we wrap it in ``BearerTokenGuard`` instead. Refuse to boot
+    # the endpoint without a token so it can never be served anonymously.
     if settings.metrics_endpoint_enabled:
         from prometheus_client import make_asgi_app  # noqa: PLC0415
 
-        app.mount("/metrics", make_asgi_app())
+        if not settings.metrics_auth_token:
+            raise RuntimeError(
+                "metrics_endpoint_enabled is on but metrics_auth_token is "
+                "unset — refusing to mount an unauthenticated /metrics "
+                "endpoint. Set METRICS_AUTH_TOKEN (see docs/observability.md)."
+            )
+        app.mount(
+            "/metrics",
+            BearerTokenGuard(make_asgi_app(), token=settings.metrics_auth_token),
+        )
 
     return app
 

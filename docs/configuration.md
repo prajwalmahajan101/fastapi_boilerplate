@@ -61,6 +61,7 @@ sees the resolved profile instance.
 | `cache_key_prefix` | Prepended to every Redis cache key. Two deployments sharing a Redis cluster MUST set distinct prefixes. Default `"app"`. |
 | `circuit_breaker_backend` | Selects `auto` / `redis` / `memory` / `pybreaker` — see [`resilience.md`](resilience.md). |
 | `outbound_url_allowlist` | Positive list of hosts `resilience_kit.http_client.AsyncAPIClient` may call. Empty / `"*"` is permissive. See [`security.md`](security.md). |
+| `metrics_auth_token` | Shared secret required to scrape `GET /metrics` when `metrics_endpoint_enabled` is on. Source it from the secret manager; the app refuses to boot the endpoint without it. See [`observability.md`](observability.md). |
 
 ## Settings catalog
 

@@ -361,6 +361,13 @@ class CoreSettings(BaseSettings):
     #: metrics register on the same registry. Off by default; scrape
     #: target for Prometheus/OpenMetrics. Excluded from the OpenAPI schema.
     metrics_endpoint_enabled: bool = False
+    #: Shared-secret bearer token required to scrape ``GET /metrics`` when
+    #: ``metrics_endpoint_enabled`` is on. The mount refuses to boot without
+    #: it (the endpoint must never be anonymous), so a scrape must send
+    #: ``Authorization: Bearer <token>``. Keep it out of source — inject via
+    #: ``METRICS_AUTH_TOKEN`` from the secret manager, and pair with
+    #: network isolation as defense-in-depth.
+    metrics_auth_token: str | None = None
 
     # ── API audit log (Postgres backend uses the shared db_dsn above) ──
     api_log_backend: Literal["noop", "postgres"] = "postgres"
