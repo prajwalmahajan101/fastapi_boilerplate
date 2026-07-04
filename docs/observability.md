@@ -1,7 +1,8 @@
 # Observability
 
-Three pillars: structured logs, a per-request audit row, and metric
-hooks ready to wire to Prometheus / OpenTelemetry.
+Three pillars: structured logs, a per-request audit row, and metrics
+forwarded to resilience-kit's pluggable sink (Prometheus / OpenTelemetry /
+Sentry).
 
 ## Structured logging
 
@@ -27,12 +28,35 @@ Toggles:
 on `request.state.request_id`, and binds it to a contextvar so
 loggers downstream pick it up. The response carries the same id back.
 
-## Metrics middleware
+## Metrics
 
-`MetricsMiddleware` (`src/core/middleware/metrics_middleware.py`)
-samples per-request duration into `src.core.metrics`, a shim that
-ships disabled by default. Flip `metrics_middleware_enabled=True`
-once you wire a Prometheus or OTel exporter to the shim hooks.
+`src.core.metrics` is the uniform `record_duration` / `record_counter` /
+`record_gauge` entry point. Each call (1) emits a structured INFO log and
+(2) forwards to resilience-kit's **active metrics sink**, selected by
+`RESILIENCE_METRICS_SINK`:
+
+| Value | Sink | Needs extra |
+|---|---|---|
+| `noop` (default) | discards | — |
+| `prometheus` | `prometheus_client` registry | `[prometheus]` (pinned) |
+| `otel` | OpenTelemetry meter | `[otel]` |
+| `sentry` | Sentry breadcrumbs | `[sentry]` |
+
+The shim's local `_assert_bounded` guard rejects high-cardinality labels
+at the call site (stricter than the kit's runtime `BoundedMetricsSink`,
+which drops labels past `RESILIENCE_METRICS_CARDINALITY_BUDGET`). Keep
+both — call-site rejection catches programmer error in tests/CI; the kit
+budget is the runtime backstop.
+
+**Prometheus endpoint.** Set `METRICS_ENDPOINT_ENABLED=true` to mount
+`GET /metrics` (text exposition over the `prometheus_client` default
+registry, where the kit's `PrometheusMetricsSink` also registers). Pair it
+with `RESILIENCE_METRICS_SINK=prometheus`. The mount is excluded from the
+OpenAPI schema.
+
+`MetricsMiddleware` (`src/core/middleware/metrics_middleware.py`) samples
+per-request duration into the shim; toggle with
+`metrics_middleware_enabled` (off by default).
 
 ## API audit log
 

@@ -61,3 +61,29 @@ def test_record_gauge_carries_value(caplog: pytest.LogCaptureFixture) -> None:
     caplog.set_level(logging.INFO, logger="src.core.metrics")
     metrics.record_gauge("queue_depth", 42.0)
     assert caplog.records[0].value == 42.0  # type: ignore[attr-defined]
+
+
+def test_record_counter_forwards_to_kit_sink(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The counter shim forwards a mapped name + tags to the kit sink."""
+    calls: list[tuple[str, float, dict[str, str] | None]] = []
+    monkeypatch.setattr(
+        metrics,
+        "_kit_counter",
+        lambda name, value, tags: calls.append((name, value, tags)),
+    )
+    metrics.record_counter("loan_disbursed", status="ok", outcome="success")
+    assert calls == [
+        ("app_loan_disbursed_total", 1, {"status": "ok", "outcome": "success"})
+    ]
+
+
+def test_forward_swallows_sink_errors() -> None:
+    """A failing sink must never propagate into the caller."""
+
+    def _boom(name: str, value: float, tags: dict[str, str] | None) -> None:
+        raise RuntimeError("sink down")
+
+    # Should not raise.
+    metrics._forward(_boom, "x", 1.0, {})
