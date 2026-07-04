@@ -101,7 +101,11 @@ async def _debounce_last_used(api_key_id: int) -> bool:
 
     cache_key = f"apikey_used_{api_key_id}"
     try:
-        cache = await get_cache("default")
+        # ``get_cache`` is synchronous since resilience-kit 0.1.0 (it
+        # returns an ``AsyncCache``; only the cache *operations* await).
+        # Awaiting it raised ``TypeError`` — silently swallowed below —
+        # which defeated the debounce entirely (ISSUE-043).
+        cache = get_cache("default")
         if await cache.add(cache_key, "1", ttl=_LAST_USED_DEBOUNCE_SECONDS):
             return True
         return False

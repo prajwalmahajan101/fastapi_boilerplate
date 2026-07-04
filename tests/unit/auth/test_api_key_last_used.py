@@ -102,6 +102,27 @@ async def test_debounced_authenticate_does_not_submit(
 
 
 @pytest.mark.asyncio
+async def test_debounce_uses_real_cache_and_suppresses_second_call() -> None:
+    """Regression (ISSUE-043): the *real* ``_debounce_last_used`` must run.
+
+    The other tests stub ``_debounce_last_used`` with an ``AsyncMock``, so
+    they never execute its body — which is how ``await get_cache(...)`` (a
+    ``TypeError`` on the synchronous provider, silently swallowed) shipped
+    while defeating the debounce. This test drives the unmocked helper
+    against the in-memory kit cache: the first call wins the write slot,
+    an immediate second call for the same key is debounced.
+    """
+    key_id = 4321
+    first = await api_key_module._debounce_last_used(key_id)
+    second = await api_key_module._debounce_last_used(key_id)
+
+    assert first is True
+    assert second is False
+    # A different key is not affected by the first key's window.
+    assert await api_key_module._debounce_last_used(key_id + 1) is True
+
+
+@pytest.mark.asyncio
 async def test_queue_overflow_does_not_break_auth(
     monkeypatch: pytest.MonkeyPatch,
     _patch_lookup: _StubAPIKey,
