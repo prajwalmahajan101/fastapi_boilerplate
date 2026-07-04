@@ -242,9 +242,7 @@ class BaseRepository(Generic[ModelT]):
     # ``builtins.list`` (not bare ``list``): the ``list()`` CRUD method below
     # shadows the builtin in this class's scope, so a bare ``list[...]``
     # annotation resolves to the method and mypy rejects it as a type.
-    async def add_all(
-        self, instances: builtins.list[ModelT]
-    ) -> builtins.list[ModelT]:
+    async def add_all(self, instances: builtins.list[ModelT]) -> builtins.list[ModelT]:
         """Insert several instances, flush, and refresh each.
 
         Args:
