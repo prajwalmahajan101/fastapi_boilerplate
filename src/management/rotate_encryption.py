@@ -137,8 +137,7 @@ async def _rotate_table(
         async with engine.connect() as conn:
             if last_pk is None:
                 stmt = text(
-                    f"SELECT {pk}, {col_list} FROM {table} "
-                    f"ORDER BY {pk} LIMIT :limit"
+                    f"SELECT {pk}, {col_list} FROM {table} ORDER BY {pk} LIMIT :limit"
                 )
                 params: dict[str, object] = {"limit": _ROTATE_BATCH_SIZE}
             else:

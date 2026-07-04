@@ -23,7 +23,13 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from src.management import rotate_encryption as rot
 
 _TABLE = "rotate_test_secrets"
-_PLAINTEXTS = ["alpha", "bravo", "charlie", "delta", "echo"]  # 5 rows → 3 batches at size 2
+_PLAINTEXTS = [
+    "alpha",
+    "bravo",
+    "charlie",
+    "delta",
+    "echo",
+]  # 5 rows → 3 batches at size 2
 
 
 @pytest.fixture
@@ -78,8 +84,10 @@ async def _seeded_table(
 async def _read_secrets(engine: AsyncEngine) -> list[str]:
     async with engine.connect() as conn:
         rows = (
-            await conn.execute(text(f"SELECT secret FROM {_TABLE} ORDER BY id"))
-        ).scalars().all()
+            (await conn.execute(text(f"SELECT secret FROM {_TABLE} ORDER BY id")))
+            .scalars()
+            .all()
+        )
     return list(rows)
 
 

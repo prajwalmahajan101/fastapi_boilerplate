@@ -56,9 +56,7 @@ class BearerTokenGuard:
             await self._app(scope, receive, send)
             return
 
-        raw_headers = cast(
-            "list[tuple[bytes, bytes]]", scope.get("headers") or []
-        )
+        raw_headers = cast("list[tuple[bytes, bytes]]", scope.get("headers") or [])
         headers = dict(raw_headers)
         provided = headers.get(b"authorization", b"").decode("latin-1")
         if hmac.compare_digest(provided, self._expected):
