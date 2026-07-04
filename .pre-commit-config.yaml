@@ -1,8 +1,11 @@
 repos:
+  # Keep this rev in lockstep with the pinned ``ruff`` in requirements/dev.txt
+  # (currently 0.15.16). If they drift, pre-commit formats with a different
+  # ruff than CI's ``ruff format --check .`` and formatting slips through to CI.
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.0
+    rev: v0.15.16
     hooks:
-      - id: ruff
+      - id: ruff-check
         args: ["--fix"]
       - id: ruff-format
 
