@@ -185,6 +185,18 @@ def create_app() -> FastAPI:
     register_exception_handlers(app)
 
     app.include_router(root_router)
+
+    # Prometheus text-exposition endpoint (opt-in). Mounts the
+    # ``prometheus_client`` default registry, where the kit's
+    # ``PrometheusMetricsSink`` (selected via ``RESILIENCE_METRICS_SINK=
+    # prometheus``) registers its collectors, plus anything the
+    # ``src.core.metrics`` shim forwards. A raw ASGI mount, so it never
+    # appears in the OpenAPI schema.
+    if settings.metrics_endpoint_enabled:
+        from prometheus_client import make_asgi_app  # noqa: PLC0415
+
+        app.mount("/metrics", make_asgi_app())
+
     return app
 
 

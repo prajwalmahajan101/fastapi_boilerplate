@@ -355,6 +355,12 @@ class CoreSettings(BaseSettings):
     # itself is always importable; toggling this flag only controls
     # whether the per-request emission happens.
     metrics_middleware_enabled: bool = False
+    #: Mount a Prometheus text-exposition endpoint at ``GET /metrics``
+    #: (``prometheus_client`` default registry). Pair with
+    #: ``RESILIENCE_METRICS_SINK=prometheus`` so the kit's resilience
+    #: metrics register on the same registry. Off by default; scrape
+    #: target for Prometheus/OpenMetrics. Excluded from the OpenAPI schema.
+    metrics_endpoint_enabled: bool = False
 
     # ── API audit log (Postgres backend uses the shared db_dsn above) ──
     api_log_backend: Literal["noop", "postgres"] = "postgres"

@@ -48,6 +48,14 @@ the boilerplate's settings source overrides env automatically.
 Kubernetes liveness should *not* hit `/readyz` — a transient Redis
 outage will then restart the pod and lose the in-memory fallback.
 
+## Metrics scrape
+
+With `METRICS_ENDPOINT_ENABLED=true` (+ `RESILIENCE_METRICS_SINK=prometheus`),
+the app serves Prometheus text exposition at `GET /metrics`. Point a
+scrape job at it — the mount redirects `/metrics` → `/metrics/`, so
+configure `metrics_path: /metrics/` or let the scraper follow the 307.
+See [`observability.md`](observability.md).
+
 ## Migrations
 
 ```bash

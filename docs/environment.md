@@ -73,6 +73,7 @@ markers is preserved.
 | `task_max_tries` | `int` | — | `5` |  |
 | `celery_result_backend` | `str | None` | — | `None` |  |
 | `metrics_middleware_enabled` | `bool` | — | `False` |  |
+| `metrics_endpoint_enabled` | `bool` | — | `False` |  |
 | `api_log_backend` | `Literal` | — | `'postgres'` |  |
 | `api_log_capture_request_body` | `bool` | — | `True` |  |
 | `api_log_capture_response_body` | `bool` | — | `True` |  |

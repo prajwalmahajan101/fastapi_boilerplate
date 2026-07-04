@@ -1,11 +1,19 @@
 """Metrics shim — uniform entry point for duration / counter / gauge events.
 
-Today every call fans out to ``logger.info`` with a structured ``extra=``
-payload that log-aggregation can pick up. The Prometheus exporter swap
-(adding ``prometheus-client`` and tee-ing into Histograms / Counters /
-Gauges) is a one-line change inside :func:`record_duration` /
-:func:`record_counter` / :func:`record_gauge` once the dependency
-lands. No call site changes.
+Every call does two things: (1) fans out to ``logger.info`` with a
+structured ``extra=`` payload that log-aggregation can pick up, and
+(2) forwards to resilience-kit's active metrics sink
+(``resilience_kit.metrics.record_*``). The sink is selected by
+``RESILIENCE_METRICS_SINK`` — ``noop`` (default), ``prometheus``, ``otel``,
+or ``sentry`` — so flipping the deploy to Prometheus needs no call-site
+change. The bounded ``**labels`` become the sink's ``tags``.
+
+The local cardinality guard (:func:`_assert_bounded`) still runs *before*
+the forward: it rejects a bad label at the call site with a clear error,
+which is stricter than the kit's ``BoundedMetricsSink`` (that silently
+drops labels past ``RESILIENCE_METRICS_CARDINALITY_BUDGET``). Keep both —
+call-site rejection catches programmer error in tests/CI; the kit budget
+is the runtime backstop.
 
 Cardinality contract — DO NOT bypass:
 
@@ -31,7 +39,31 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from resilience_kit.metrics import (
+    record_counter as _kit_counter,
+    record_duration as _kit_duration,
+    record_gauge as _kit_gauge,
+)
+
 logger = logging.getLogger(__name__)
+
+
+def _forward(kit_fn: Any, name: str, value: float, tags: dict[str, str]) -> None:
+    """Forward a metric to the kit sink, swallowing any sink-side error.
+
+    Metrics must never break the request path, so a misconfigured or
+    failing sink degrades to log-only rather than propagating.
+
+    Args:
+        kit_fn: One of the kit ``record_*`` free functions.
+        name: Metric name.
+        value: Metric value (count / duration-ms / gauge value).
+        tags: Bounded label map (already cardinality-checked).
+    """
+    try:
+        kit_fn(name, value, tags or None)
+    except Exception:  # noqa: BLE001 — metrics sink must never break callers.
+        logger.debug("metrics sink forward failed for %s", name, exc_info=True)
 
 
 # Allow-list. Add a key here ONLY if it has a documented, bounded value
@@ -69,8 +101,7 @@ _FORBIDDEN_LABEL_KEYS: frozenset[str] = frozenset(
 
 
 class CardinalityViolation(ValueError):
-    """Raised when a metrics call site passes a label that would blow up
-    Prometheus' time-series space.
+    """Raised on a metrics label that would blow up the time-series space.
 
     Catching this at runtime is intentional — a metric registered with
     high-cardinality labels can take down the scrape endpoint long
@@ -147,6 +178,12 @@ def record_duration(
             **bounded_labels,
         },
     )
+    _forward(
+        _kit_duration,
+        f"app_{event}_duration_ms",
+        duration_ms,
+        {"status": status, **bounded_labels},
+    )
 
 
 def record_counter(
@@ -179,6 +216,12 @@ def record_counter(
             **bounded_labels,
         },
     )
+    _forward(
+        _kit_counter,
+        f"app_{event}_total",
+        n,
+        {"status": status, **bounded_labels},
+    )
 
 
 def record_gauge(
@@ -210,6 +253,7 @@ def record_gauge(
             **bounded_labels,
         },
     )
+    _forward(_kit_gauge, f"app_{name}", value, dict(bounded_labels))
 
 
 __all__ = [
