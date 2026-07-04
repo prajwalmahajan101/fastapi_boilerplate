@@ -203,7 +203,10 @@ def create_app() -> FastAPI:
     if settings.metrics_endpoint_enabled:
         from prometheus_client import make_asgi_app  # noqa: PLC0415
 
-        if not settings.metrics_auth_token:
+        # ``metrics_auth_token`` is a ``SecretStr``; a ``SecretStr("")`` is
+        # still truthy, so guard against both unset and an empty inner value.
+        token = settings.metrics_auth_token
+        if token is None or not token.get_secret_value():
             raise RuntimeError(
                 "metrics_endpoint_enabled is on but metrics_auth_token is "
                 "unset — refusing to mount an unauthenticated /metrics "
@@ -211,7 +214,7 @@ def create_app() -> FastAPI:
             )
         app.mount(
             "/metrics",
-            BearerTokenGuard(make_asgi_app(), token=settings.metrics_auth_token),
+            BearerTokenGuard(make_asgi_app(), token=token.get_secret_value()),
         )
 
     return app

@@ -366,8 +366,9 @@ class CoreSettings(BaseSettings):
     #: it (the endpoint must never be anonymous), so a scrape must send
     #: ``Authorization: Bearer <token>``. Keep it out of source — inject via
     #: ``METRICS_AUTH_TOKEN`` from the secret manager, and pair with
-    #: network isolation as defense-in-depth.
-    metrics_auth_token: str | None = None
+    #: network isolation as defense-in-depth. ``SecretStr`` so it is masked
+    #: in settings reprs / log dumps, like the other endpoint secrets above.
+    metrics_auth_token: SecretStr | None = None
 
     # ── API audit log (Postgres backend uses the shared db_dsn above) ──
     api_log_backend: Literal["noop", "postgres"] = "postgres"
