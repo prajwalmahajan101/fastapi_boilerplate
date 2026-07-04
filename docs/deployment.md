@@ -24,7 +24,7 @@ state. The pybreaker tier is per-worker by design.
 
 | Env var | Purpose |
 |---|---|
-| `FIELD_ENCRYPTION_KEY` | Fernet key for `EncryptedString` columns. |
+| `RESILIENCE_CRYPTO__FIELD_ENCRYPTION_KEYS` | Ordered Fernet key list for `EncryptedString` columns (primary first; rotatable — see [`key-rotation.md`](key-rotation.md)). Singular `FIELD_ENCRYPTION_KEY` is a deprecated alias. |
 | `SECRET_KEY` | App-level signing secret. |
 | `DB_HOST` (non-localhost) | Database host. |
 

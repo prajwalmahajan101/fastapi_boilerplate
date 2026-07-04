@@ -28,9 +28,15 @@ process boots even without AWS).
 |---|---|---|
 | `local` (default) | `LocalSettings` | Permissive, `DEBUG` logging. |
 | `test` | `TestSettings` | `db_name=app_test`, noop audit, metrics off. |
-| `dev` | `DevSettings` | Fails fast if `DB_HOST` or `FIELD_ENCRYPTION_KEY` missing. |
+| `dev` | `DevSettings` | Fails fast if `DB_HOST` missing. |
 | `uat` | `UatSettings` | Inherits dev validator; INFO logging. |
-| `prod` | `ProdSettings` | Requires `FIELD_ENCRYPTION_KEY`, `SECRET_KEY`, non-localhost `DB_HOST`. |
+| `prod` | `ProdSettings` | Requires non-localhost `DB_HOST`. |
+
+The Fernet-key guard is owned by resilience-kit, not these profiles:
+`FernetCipher` refuses to build in `prod` without
+`RESILIENCE_CRYPTO__FIELD_ENCRYPTION_KEYS` (an ordered list; the singular
+`…_KEY` is a deprecated alias) — the first encrypted-column access fails
+with `EncryptionConfigError`. See [`key-rotation.md`](key-rotation.md).
 
 Unknown `APP_ENV` values fall back to `LocalSettings` with a warning.
 

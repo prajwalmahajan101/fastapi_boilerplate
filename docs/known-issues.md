@@ -25,7 +25,7 @@ DB_HOST=localhost DB_PORT=5433 DB_USER=postgres DB_PASSWORD=postgres DB_NAME=pos
 FERNET_KEY=$(.venv/bin/python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
 TEST_DATABASE_URL="postgresql+asyncpg://postgres:postgres@localhost:5433/postgres" \
 TEST_REDIS_URL="redis://localhost:6380/0" \
-RESILIENCE_CRYPTO__FIELD_ENCRYPTION_KEY="$FERNET_KEY" \
+RESILIENCE_CRYPTO__FIELD_ENCRYPTION_KEYS="[\"$FERNET_KEY\"]" \
 RESILIENCE_CRYPTO__ENVIRONMENT="dev" \
   .venv/bin/python -m pytest -m integration -v
 

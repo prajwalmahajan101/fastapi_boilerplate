@@ -7,6 +7,10 @@
 - `init_db.py` — emergency `metadata.create_all` DDL bootstrap. **Alembic
   is the canonical schema source** (`alembic upgrade head`); use this only
   when Alembic is unavailable, then `alembic stamp head`.
+- `rotate_encryption.py` — re-encrypt every `EncryptedString` column onto
+  the current primary Fernet key (resilience-kit MultiFernet rotation).
+  Add new encrypted columns to its `ENCRYPTED_COLUMNS` registry. Run
+  step 2 of the `docs/key-rotation.md` flow; `--dry-run` counts only.
 
 Add maintenance / backfill / one-shot operational scripts here rather than
 ad-hoc scripts at the repo root.

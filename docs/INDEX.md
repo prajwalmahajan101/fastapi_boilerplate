@@ -29,6 +29,7 @@ this folder is for the cross-cutting "how + why" of the platform.
 |---|---|
 | [`authentication.md`](authentication.md) | Pluggable auth providers (API-key / JWT / Google OAuth) |
 | [`security.md`](security.md) | Security headers, CORS, rate limits, audit log |
+| [`key-rotation.md`](key-rotation.md) | Field-encryption key rotation runbook (MultiFernet) |
 | [`exceptions.md`](exceptions.md) | Exception → HTTP-status registry, families |
 | [`resilience.md`](resilience.md) | Cache, circuit breaker, throttle, retry, recovery monitor |
 | [`observability.md`](observability.md) | Structured logging, request-id, metrics, audit log |

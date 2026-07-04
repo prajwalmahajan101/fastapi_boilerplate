@@ -99,9 +99,13 @@ addresses. Toggle with `SSRF_BLOCK_PRIVATE_IPS` (default on).
 
 ## Encryption at rest
 
-`EncryptedString` columns transparently Fernet-encrypt values using
-`FIELD_ENCRYPTION_KEY`. A decryption failure raises `DecryptionError` rather
-than returning garbage.
+`EncryptedString` columns transparently Fernet-encrypt values using the
+ordered key list `RESILIENCE_CRYPTO__FIELD_ENCRYPTION_KEYS` (primary first;
+resilience-kit MultiFernet). A decryption failure raises `DecryptionError`
+rather than returning garbage. Rotate keys with zero downtime via
+`python -m src.management.rotate_encryption` — see
+[`key-rotation.md`](key-rotation.md). The singular
+`FIELD_ENCRYPTION_KEY` is a deprecated one-cycle alias.
 
 ## Audit log + log sanitisation
 
