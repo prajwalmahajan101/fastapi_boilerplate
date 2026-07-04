@@ -20,6 +20,7 @@ to existing call sites.
 
 from __future__ import annotations
 
+import builtins
 from abc import ABC
 from typing import Any, Generic, Sequence, TypeVar
 
@@ -371,9 +372,12 @@ class BaseService(ABC, Generic[ModelT]):
 
     async def bulk_create(
         self,
-        data_list: list[dict[str, Any]],
+        # ``builtins.list``: the ``list()`` CRUD method shadows the builtin
+        # in this class's scope, so a bare ``list[...]`` annotation resolves
+        # to the method and mypy rejects it as a type.
+        data_list: builtins.list[dict[str, Any]],
         user: Any | None = None,
-    ) -> list[ModelT]:
+    ) -> builtins.list[ModelT]:
         """Insert many instances in one flush, skipping per-row hooks.
 
         Args:
@@ -549,7 +553,7 @@ class BaseService(ABC, Generic[ModelT]):
         self,
         parent: ModelT,
         relationship_key: str,
-    ) -> list[Any]:
+    ) -> builtins.list[Any]:
         related = await getattr(parent.awaitable_attrs, relationship_key)
         if related is None:
             return []

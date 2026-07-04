@@ -37,6 +37,8 @@ def get_aws_client(service_name: str, *, region: str | None = None) -> Any:
 
     client = getattr(_thread_local, cache_key, None)
     if client is None:
-        client = boto3.client(service_name, region_name=resolved_region)
+        # ``service_name`` is a dynamic ``str``; boto3-stubs types ``client()``
+        # only via per-service ``Literal`` overloads, so no overload matches.
+        client = boto3.client(service_name, region_name=resolved_region)  # type: ignore[call-overload]
         setattr(_thread_local, cache_key, client)
     return client

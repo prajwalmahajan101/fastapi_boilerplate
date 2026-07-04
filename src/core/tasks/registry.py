@@ -20,8 +20,8 @@ from __future__ import annotations
 import asyncio
 import functools
 import logging
-from collections.abc import Awaitable, Callable
-from typing import Any, ParamSpec, TypeVar
+from collections.abc import Awaitable, Callable, Coroutine
+from typing import Any, ParamSpec, TypeVar, cast
 
 from src.core.tasks.app import celery_app
 
@@ -110,7 +110,12 @@ def async_task(
     def _decorate(coro_fn: Callable[_P, Awaitable[_T]]) -> Any:
         @functools.wraps(coro_fn)
         def _sync_runner(*args: _P.args, **kwargs: _P.kwargs) -> _T:
-            return asyncio.run(coro_fn(*args, **kwargs))
+            # ``coro_fn`` is typed ``Awaitable[_T]``; ``asyncio.run`` wants a
+            # ``Coroutine``. Every registered task is an ``async def``, so the
+            # returned awaitable is a coroutine — narrow it for the type checker.
+            return asyncio.run(
+                cast("Coroutine[Any, Any, _T]", coro_fn(*args, **kwargs))
+            )
 
         task = celery_app.task(name=name, **task_kwargs)(_sync_runner)
         _tasks[task.name] = task
