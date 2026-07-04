@@ -6,10 +6,16 @@
 # Web framework
 fastapi
 uvicorn[standard]
+# Transitive via fastapi/resilience-kit, pinned here to force the
+# PYSEC-2026-248/249 fix (flagged by pip-audit; matches resilience-kit
+# 0.2.0's lockfile bump).
+starlette>=1.3.1
 
 # Settings & validation
 pydantic
-pydantic-settings
+# >=2.14.2 pulls the GHSA-4xgf-cpjx-pc3j fix (flagged by pip-audit; also
+# bumped in resilience-kit 0.2.0's lockfile).
+pydantic-settings>=2.14.2
 
 # Database (async Postgres)
 sqlalchemy[asyncio]
@@ -53,4 +59,8 @@ pybreaker
 # reset surface. v0.1.0 adds the helpers used by `src/core/middleware/
 # request_id_bridge.py`, `src/core/exceptions/handlers.py::kit_error_handler`,
 # `src/core/settings.py::legacy_env_alias()`, and the async test fixture.
-resilience-kit[fastapi,redis,http,crypto,audit-postgres]==0.1.0
+# v0.2.0 adds the `[prometheus]` metrics sink (wired in `src/core/metrics.py`),
+# the `india_fintech` audit redactor (`src/core/api_log/sanitizers.py`),
+# MultiFernet field-key rotation (`src/management/rotate_encryption.py`), and
+# `AsyncAPIClient` idempotency keys.
+resilience-kit[fastapi,redis,http,crypto,audit-postgres,prometheus]==0.2.0

@@ -172,6 +172,8 @@ pluggy==1.6.0
     #   pytest-cov
 pre-commit==4.6.0
     # via -r requirements/dev.in
+prometheus-client==0.25.0
+    # via resilience-kit
 prompt-toolkit==3.0.52
     # via click-repl
 propcache==0.5.2
@@ -192,7 +194,7 @@ pydantic==2.13.4
     #   resilience-kit
 pydantic-core==2.46.4
     # via pydantic
-pydantic-settings==2.14.1
+pydantic-settings==2.14.2
     # via
     #   -r requirements/base.in
     #   resilience-kit
@@ -233,7 +235,7 @@ redis==8.0.0
     # via
     #   -r requirements/base.in
     #   resilience-kit
-resilience-kit[audit-postgres,crypto,fastapi,http,redis]==0.1.0
+resilience-kit[audit-postgres,crypto,fastapi,http,prometheus,redis]==0.2.0
     # via -r requirements/base.in
 ruff==0.15.16
     # via -r requirements/dev.in
@@ -248,8 +250,9 @@ sqlalchemy[asyncio]==2.0.50
     #   -r requirements/base.in
     #   alembic
     #   resilience-kit
-starlette==1.2.1
+starlette==1.3.1
     # via
+    #   -r requirements/base.in
     #   fastapi
     #   resilience-kit
 types-awscrt==0.34.1
