@@ -18,8 +18,8 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
+from resilience_kit import registry
 from resilience_kit.cache.provider import get_cache
-from resilience_kit.circuit_breaker.provider import get_breaker
 from resilience_kit.throttle.provider import get_throttle
 
 from sqlalchemy import text
@@ -235,7 +235,7 @@ def cache_check(alias: str = "default") -> Check:
             outcome; the backend label is exposed via ``detail``.
         """
         try:
-            cache = await get_cache(alias)
+            cache = get_cache(alias)
             snap = await cache.health_check()
             return HealthCheckResult(
                 name=f"cache[{alias}]",
@@ -268,7 +268,7 @@ def throttle_check() -> Check:
             the backend label is exposed via ``detail``.
         """
         try:
-            throttle = await get_throttle()
+            throttle = get_throttle()
             snap = await throttle.health_check()
             return HealthCheckResult(
                 name="throttle",
@@ -290,8 +290,9 @@ def breaker_check(name: str = "default") -> Check:
     """Build a probe that calls ``health_check`` on the kit circuit breaker.
 
     Args:
-        name: Breaker name resolved by
-            ``resilience_kit.circuit_breaker.provider.get_breaker``.
+        name: Service identifier whose breaker is resolved via
+            ``resilience_kit.registry.get_breaker`` (the registry applies
+            the effective per-service ``BreakerConfig``).
 
     Returns:
         An async probe callable named ``breaker_check`` for logging.
@@ -305,7 +306,7 @@ def breaker_check(name: str = "default") -> Check:
             the backend label is exposed via ``detail``.
         """
         try:
-            breaker = await get_breaker(name)
+            breaker = registry.get_breaker(name)
             snap = await breaker.health_check()
             return HealthCheckResult(
                 name="breaker",

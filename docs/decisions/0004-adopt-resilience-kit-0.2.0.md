@@ -61,9 +61,13 @@ of its new surfaces:
   the kit's shared client (ADR-0017 upstream); the two are distinct
   objects and do not double-close (documented in that module).
 - `get_cache`/`get_throttle`/`get_breaker` provider signatures are
-  unchanged from 0.1.0; a **pre-existing** bug in
-  `src/core/lifecycle/healthcheck.py` (awaiting the sync providers /
-  positional `get_breaker`) is out of scope here and tracked separately.
+  unchanged from 0.1.0. A **pre-existing** bug in
+  `src/core/lifecycle/healthcheck.py` — awaiting the *sync* providers and
+  calling `get_breaker` positionally without a config, silently reporting
+  cache/throttle/breaker unhealthy since 0.1.0 — was discovered during
+  this upgrade and fixed here: the probes call the sync providers directly
+  and resolve the breaker via `resilience_kit.registry.get_breaker(name)`
+  (which applies the effective per-service `BreakerConfig`).
 
 ## Alternatives considered
 
