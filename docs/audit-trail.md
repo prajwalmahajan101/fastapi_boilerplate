@@ -40,7 +40,7 @@ truncation so a match is never half-exposed by the length cap. Toggle with
 ## Outbound
 
 `resilience_kit.http_client.AsyncAPIClient` (now kit-owned, see
-[ADR-0003](decisions/0003-outsource-resilience-to-resilience-kit.md))
+[ADR-0003](adr/0003-outsource-resilience-to-resilience-kit.md))
 wraps the outbound HTTP path and pairs each call with a logged row
 carrying the destination URL, request/response payloads, and status.
 
@@ -89,6 +89,6 @@ single request together.
 
 ## See also
 
-- [ADR-0001](decisions/0001-fire-and-forget-audit-pipeline.md) —
+- [ADR-0001](adr/0001-fire-and-forget-audit-pipeline.md) —
   why the pipeline is fire-and-forget and what we sacrificed to get there.
 - `src/core/api_log/CLAUDE.md` — module-level conventions.

@@ -29,7 +29,7 @@ from overwriting the first's result.
 Used in-tree by `auth/registry.py` (one-shot warning set guarded by
 import order). `resilience-kit` ships the same async-singleton shape
 inside its cache, circuit-breaker, and throttle providers (see
-[ADR-0003](decisions/0003-outsource-resilience-to-resilience-kit.md));
+[ADR-0003](adr/0003-outsource-resilience-to-resilience-kit.md));
 the kit's docs are the source of truth for that implementation.
 
 The auth registry itself uses a plain dict because all registration

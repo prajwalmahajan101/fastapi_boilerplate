@@ -4,7 +4,7 @@ The four cross-cutting resilience tiers — **cache**, **circuit
 breaker**, **throttle**, **retry** — and their supporting infrastructure
 (recovery monitor, async-singleton providers, in-memory fallback) are
 owned by **`resilience-kit`** (`==0.1.0`), not by the boilerplate. See
-[ADR-0003](decisions/0003-outsource-resilience-to-resilience-kit.md)
+[ADR-0003](adr/0003-outsource-resilience-to-resilience-kit.md)
 for the why.
 
 This doc covers what the boilerplate adds **on top of** the kit:
@@ -72,7 +72,7 @@ and the inbound `request_id`.
 We deliberately do **NOT** install the kit's bundled handlers
 (`install_handlers`). Doing so would emit a second, kit-native
 envelope shape alongside the boilerplate's, breaking the single-shape
-contract from [ADR-0002](decisions/0002-exception-http-registry.md).
+contract from [ADR-0002](adr/0002-exception-http-registry.md).
 
 See `src/app.py` around line 115 for the install site and the comment
 explaining the deliberate omission.

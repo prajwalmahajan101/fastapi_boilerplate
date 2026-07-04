@@ -94,13 +94,13 @@ ALLOW_MARKER = "# stale-refs: allow"
 # Always-ignored paths. ``.code_review/`` is a living history of prior
 # review state and is *expected* to mention old symbols. ``CHANGELOG.md``
 # is allowed because a rename entry must use the old name to describe
-# the change. ``docs/decisions/`` (ADRs) are historical records by
+# the change. ``docs/adr/`` (ADRs) are historical records by
 # definition: an ADR documenting "X was removed; we now do Y" must
 # reference X verbatim in its decision/context/alternatives prose.
 EXCLUDE_PREFIXES = (
     ".code_review/",
     "CHANGELOG.md",
-    "docs/decisions/",
+    "docs/adr/",
 )
 
 # Path substrings that mark a scanned file as historical-record. Alembic
