@@ -11,9 +11,10 @@ Django's ``select_related`` / ``prefetch_related``.
 
 from __future__ import annotations
 
-from typing import Any, Generic, Sequence, TypeVar
+import builtins
+from typing import Any, Generic, Sequence, TypeVar, cast
 
-from sqlalchemy import delete as sqla_delete
+from sqlalchemy import CursorResult, delete as sqla_delete
 from sqlalchemy import func, select, update as sqla_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -238,7 +239,12 @@ class BaseRepository(Generic[ModelT]):
         await self.session.refresh(instance)
         return instance
 
-    async def add_all(self, instances: list[ModelT]) -> list[ModelT]:
+    # ``builtins.list`` (not bare ``list``): the ``list()`` CRUD method below
+    # shadows the builtin in this class's scope, so a bare ``list[...]``
+    # annotation resolves to the method and mypy rejects it as a type.
+    async def add_all(
+        self, instances: builtins.list[ModelT]
+    ) -> builtins.list[ModelT]:
         """Insert several instances, flush, and refresh each.
 
         Args:
@@ -305,7 +311,9 @@ class BaseRepository(Generic[ModelT]):
         """
         stmt = sqla_update(self.model).filter_by(**filters).values(**values)
         result = await self.session.execute(stmt)
-        return result.rowcount or 0
+        # ``rowcount`` lives on ``CursorResult`` (returned for UPDATE/DELETE),
+        # not the base ``Result`` type the stub infers from ``execute``.
+        return cast("CursorResult[Any]", result).rowcount or 0
 
     async def delete_hard(self, instance: ModelT) -> None:
         """Permanently delete an instance from the database.
@@ -327,4 +335,6 @@ class BaseRepository(Generic[ModelT]):
         """
         stmt = sqla_delete(self.model).where(self.model.id == pk)
         result = await self.session.execute(stmt)
-        return result.rowcount or 0
+        # ``rowcount`` lives on ``CursorResult`` (returned for UPDATE/DELETE),
+        # not the base ``Result`` type the stub infers from ``execute``.
+        return cast("CursorResult[Any]", result).rowcount or 0

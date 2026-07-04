@@ -24,6 +24,7 @@ import mimetypes
 import uuid
 from dataclasses import dataclass, field
 from email.mime.application import MIMEApplication
+from email.mime.base import MIMEBase
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -133,6 +134,10 @@ def _build_attachment_part(att: EmailAttachment):
         MIME part ready to attach to a multipart message.
     """
     main, _, sub = att.content_type.partition("/")
+    # Annotate against the common base so mypy accepts the three concrete
+    # subtypes assigned across the branches below (else it pins ``part`` to
+    # whichever subtype the first branch used).
+    part: MIMEBase
     if main == "image" and sub:
         part = MIMEImage(att.data, _subtype=sub)
     elif main == "text":
