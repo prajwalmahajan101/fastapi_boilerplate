@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project follows [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## [1.1.0] — 2026-07-04
 
 ### Migrated
 
@@ -32,11 +32,44 @@ and the project follows [Semantic Versioning](https://semver.org/).
   `FIELD_ENCRYPTION_KEY` stays a deprecated one-cycle alias.
 - **Prometheus metrics.** `src/core/metrics.py` now forwards to
   resilience-kit's active sink (`RESILIENCE_METRICS_SINK`); opt-in
-  `GET /metrics` via `METRICS_ENDPOINT_ENABLED`. `otel` / `sentry` are
-  one-env-var switches.
+  `GET /metrics` via `METRICS_ENDPOINT_ENABLED`, gated by a shared-secret
+  bearer token (`METRICS_AUTH_TOKEN`, a `SecretStr`) — the app refuses to
+  mount the endpoint unauthenticated. `otel` / `sentry` are one-env-var
+  switches.
 - **Outbound idempotency.** Documented `auto_idempotency_key` for
   non-idempotent `AsyncAPIClient` calls; the idempotency kwargs are kept
   out of the audit `extra` column.
+
+### Fixed
+
+- **Resilience health probes** no longer `await` the now-synchronous kit
+  providers (`get_cache` / `get_throttle`) and resolve the breaker via
+  `resilience_kit.registry.get_breaker(name)` so per-service `BreakerConfig`
+  applies — the probes had silently reported cache/throttle/breaker
+  unhealthy since the 0.1.0 provider-signature change.
+- **API-key `last_used_at` debounce** was fully defeated: `_debounce_last_used`
+  awaited the synchronous `get_cache`, raising a `TypeError` that a bare
+  `except` swallowed, so every authenticated request issued a redundant
+  `UPDATE`. Dropped the `await`; added a regression test over the real helper.
+- **Field-encryption key rotation** now keyset-paginates per table and commits
+  each batch in its own short transaction (was one table-long write
+  transaction holding locks on the auth hot path); `--dry-run` is a read-only
+  pass.
+- **Inbound body-PII redaction**: the raw request body and rendered
+  `Response.body` bypassed `serialize_body`, so inbound bodies persisted PII
+  unmasked — `scrub_body_pii` is now applied at both sites, before truncation.
+
+### Security
+
+- The Prometheus `/metrics` mount is authenticated (bearer token, constant-time
+  compare) and `metrics_auth_token` is a `SecretStr` so it is masked in
+  settings reprs / log dumps.
+
+### Internal
+
+- `mypy src/` is clean (0 errors) with a first `[tool.mypy]` config; `make
+  deps-check` is now deterministic (pinned `pip-tools`, seeded lockfile, pin-only
+  comparison) instead of re-resolving against live PyPI.
 
 ## [1.0.0] — 2026-06-11
 
