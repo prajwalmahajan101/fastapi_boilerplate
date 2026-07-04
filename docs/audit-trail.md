@@ -28,6 +28,15 @@ Body capture is toggleable: `api_log_capture_request_body` /
 `api_log_capture_response_body`. Bodies above
 `api_log_max_body_size` are truncated with a marker.
 
+Captured bodies (inbound **and** outbound) are additionally scanned for
+embedded PII by `sanitizers.scrub_body_pii`, which delegates to
+resilience-kit's value-scanning `RegexRedactor`: a PAN / Aadhaar / IFSC /
+mobile / bank-account (or email / Luhn-card) inside a body value is masked
+to `[REDACTED]` before persistence — the scan runs on the full body before
+truncation so a match is never half-exposed by the length cap. Toggle with
+`api_log_redact_body_pii`; choose the pattern set with
+`api_log_pii_pattern_set` (`india_fintech` | `global`).
+
 ## Outbound
 
 `resilience_kit.http_client.AsyncAPIClient` (now kit-owned, see

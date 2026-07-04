@@ -371,6 +371,17 @@ class CoreSettings(BaseSettings):
             "proxy-authorization",
         ]
     )
+    #: Scrub PII embedded *inside* captured request/response body values
+    #: (not just sensitive header names) before persisting an ``api_logs``
+    #: row, using resilience-kit's value-scanning redactor. Masks e.g. a
+    #: PAN/Aadhaar/IFSC/mobile/bank-account or email/card sitting in an
+    #: innocuous field like ``{"notes": "PAN ABCDE1234F"}``. On by default
+    #: for a fintech deployment; flip off to skip the regex pass entirely.
+    api_log_redact_body_pii: bool = True
+    #: Which resilience-kit PII pattern set the body redactor applies:
+    #: ``india_fintech`` (global + India fintech identifiers) or
+    #: ``global`` (email / IBAN / Luhn-checked card only).
+    api_log_pii_pattern_set: Literal["india_fintech", "global"] = "india_fintech"
     #: Seconds the lifespan shutdown will wait for in-flight audit
     #: writes to drain before forcing the process to exit. Bounded so a
     #: degraded audit backend cannot hang shutdown indefinitely.
