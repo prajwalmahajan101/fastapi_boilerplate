@@ -79,6 +79,8 @@ markers is preserved.
 | `api_log_max_body_size` | `int` | — | `10000` |  |
 | `api_log_ttl_days` | `int` | — | `30` |  |
 | `api_log_sensitive_headers` | `list` | — | — |  |
+| `api_log_redact_body_pii` | `bool` | — | `True` |  |
+| `api_log_pii_pattern_set` | `Literal` | — | `'india_fintech'` |  |
 | `api_log_drain_timeout_seconds` | `float` | — | `30.0` |  |
 | `api_log_batch_size` | `int` | — | `100` |  |
 | `api_log_batch_max_interval_seconds` | `float` | — | `1.0` |  |

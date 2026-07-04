@@ -115,6 +115,15 @@ fire-and-forget. Sensitive headers (`Authorization`, `X-API-Key`, `Cookie`,
 scrubs secret-looking keys (`password`, `token`, `secret`, `api_key`, …)
 from structured logs.
 
+**Body-embedded PII** is also masked: captured request/response bodies pass
+through resilience-kit's value-scanning redactor
+(`RegexRedactor`/`IndiaFintechRedactor`) before persistence, so a
+PAN / Aadhaar / IFSC / mobile / bank-account (or email / Luhn-checked card)
+sitting inside an innocuous field — e.g. `{"notes": "PAN ABCDE1234F"}` — is
+replaced with `[REDACTED]`, not just whole sensitive keys. Controlled by
+`api_log_redact_body_pii` (default on) and `api_log_pii_pattern_set`
+(`india_fintech` | `global`).
+
 ## Secrets
 
 Settings load from AWS Secrets Manager (when `AWS_SECRET_NAME` is set) ahead

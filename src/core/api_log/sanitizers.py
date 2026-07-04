@@ -16,11 +16,60 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
+from functools import lru_cache
 from typing import Any
+
+from resilience_kit.audit.sanitizers import (
+    GLOBAL_PII_PATTERNS,
+    INDIA_PII_PATTERNS,
+    RegexRedactor,
+)
 
 from src.core.runtime import get_settings
 
 UNSET: Any = object()
+
+
+@lru_cache(maxsize=2)
+def _body_redactor(pattern_set: str) -> RegexRedactor:
+    """Return a cached value-scanning redactor for ``pattern_set``.
+
+    Args:
+        pattern_set: ``"india_fintech"`` (global + India identifiers) or
+            ``"global"`` (email / IBAN / Luhn-card only).
+
+    Returns:
+        A ``RegexRedactor`` whose patterns match the requested set. Cached
+        so the (already-compiled) pattern tuple is wrapped once per set.
+    """
+    patterns = (
+        (*GLOBAL_PII_PATTERNS, *INDIA_PII_PATTERNS)
+        if pattern_set == "india_fintech"
+        else GLOBAL_PII_PATTERNS
+    )
+    return RegexRedactor(patterns=patterns)
+
+
+def scrub_body_pii(text: str) -> str:
+    """Mask PII substrings embedded in a serialised body string.
+
+    Delegates to resilience-kit's value-scanning ``RegexRedactor`` so a
+    PAN / Aadhaar / IFSC / mobile / bank-account (or email / card) sitting
+    inside an otherwise-innocuous body value is replaced with
+    ``[REDACTED]`` before the row is persisted. A no-op when
+    ``api_log_redact_body_pii`` is off.
+
+    Args:
+        text: The serialised request/response body.
+
+    Returns:
+        ``text`` with any matched PII substrings masked.
+    """
+    settings = get_settings()
+    if not settings.api_log_redact_body_pii:
+        return text
+    redactor = _body_redactor(settings.api_log_pii_pattern_set)
+    return redactor.sanitize({"v": text})["v"]
 
 
 def redact_headers(headers: dict[str, str]) -> dict[str, str]:
@@ -106,6 +155,9 @@ def serialize_body(value: Any, max_len: int) -> str | None:
             text = value.decode("utf-8", errors="replace")
         else:
             text = json.dumps(value, default=str)
+        # Scrub embedded PII on the full body before truncating, so a
+        # match is never split (and half-exposed) by the length cap.
+        text = scrub_body_pii(text)
         return truncate(text, max_len)
     except Exception:  # noqa: BLE001 — audit-only sink: serialization failure on caller-supplied payload must never raise into the request path; drop to None.
         return None
@@ -132,6 +184,7 @@ __all__ = [
     "audit_safe",
     "compute_ttl",
     "redact_headers",
+    "scrub_body_pii",
     "serialize_body",
     "truncate",
 ]
