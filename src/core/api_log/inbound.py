@@ -21,6 +21,7 @@ from src.core.api_log.sanitizers import (
     UNSET,
     compute_ttl,
     redact_headers,
+    scrub_body_pii,
     serialize_body,
     truncate,
 )
@@ -153,7 +154,7 @@ def _build_inbound_log(
         req_headers = redact_headers(dict(request.headers))
         if req_body_raw is not None:
             req_body = truncate(
-                req_body_raw.decode("utf-8", errors="replace"),
+                scrub_body_pii(req_body_raw.decode("utf-8", errors="replace")),
                 settings.api_log_max_body_size,
             )
 
@@ -166,7 +167,7 @@ def _build_inbound_log(
             body_bytes = getattr(result, "body", None)
             if isinstance(body_bytes, (bytes, bytearray)) and body_bytes:
                 resp_body = truncate(
-                    bytes(body_bytes).decode("utf-8", errors="replace"),
+                    scrub_body_pii(bytes(body_bytes).decode("utf-8", errors="replace")),
                     settings.api_log_max_body_size,
                 )
         else:

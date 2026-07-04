@@ -9,8 +9,25 @@ from __future__ import annotations
 
 import pytest
 
-from src.core.api_log.sanitizers import scrub_body_pii, serialize_body
+from starlette.requests import Request
+from starlette.responses import PlainTextResponse
+
+from src.core.api_log.inbound import _build_inbound_log
+from src.core.api_log.sanitizers import UNSET, scrub_body_pii, serialize_body
 from src.core.runtime import get_settings
+
+
+def _request() -> Request:
+    """Build a minimal POST ``Request`` for inbound-log construction."""
+    return Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/items",
+            "query_string": b"",
+            "headers": [],
+        }
+    )
 
 
 def test_scrub_masks_india_fintech_identifiers() -> None:
@@ -54,3 +71,34 @@ def test_toggle_off_disables_redaction(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(get_settings(), "api_log_redact_body_pii", False)
     out = scrub_body_pii("PAN ABCDE1234F")
     assert out == "PAN ABCDE1234F"
+
+
+def test_inbound_request_body_is_redacted() -> None:
+    """The inbound builder scrubs PII in the raw request body (not just resp)."""
+    log = _build_inbound_log(
+        request=_request(),
+        req_body_raw=b'{"description":"customer PAN ABCDE1234F"}',
+        service_name="t",
+        result=UNSET,
+        duration_ms=1.0,
+        exc_type=None,
+        exc_msg=None,
+    )
+    assert log.request_body is not None
+    assert "ABCDE1234F" not in log.request_body
+    assert "[REDACTED]" in log.request_body
+
+
+def test_inbound_response_body_is_redacted() -> None:
+    """A rendered Response body has embedded PII scrubbed before persistence."""
+    log = _build_inbound_log(
+        request=_request(),
+        req_body_raw=None,
+        service_name="t",
+        result=PlainTextResponse("contact a@b.com"),
+        duration_ms=1.0,
+        exc_type=None,
+        exc_msg=None,
+    )
+    assert log.response_body is not None
+    assert "a@b.com" not in log.response_body
