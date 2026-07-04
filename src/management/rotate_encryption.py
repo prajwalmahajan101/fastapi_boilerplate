@@ -15,13 +15,18 @@ three-step operator flow (see ``docs/key-rotation.md``):
 This walks the raw ciphertext at the SQL layer (bypassing the
 ``EncryptedString`` type decorator) and calls
 :meth:`FernetCipher.rotate`, so plaintext is never materialised in the
-process. The whole sweep runs in one transaction: if any token cannot be
-decrypted under the configured keys the transaction rolls back and no row
-is partially rotated.
+process. The sweep is **batched**: each table is walked by keyset
+pagination on its primary key and every batch commits in its own short
+transaction, so a large encrypted table does not hold a table-long write
+transaction that would block concurrent writers to the auth hot path. A
+token that cannot be decrypted aborts the run — the current batch rolls
+back, but batches committed earlier stay rotated (the command is
+idempotent, so re-run after fixing the key list).
 
 Safe to re-run: Fernet tokens carry a timestamp + IV, so each run writes
 fresh ciphertext even for already-primary rows — harmless, the plaintext
-is preserved. Use ``--dry-run`` to count affected rows without writing.
+is preserved. Use ``--dry-run`` to count affected rows without writing (a
+read-only pass — no transaction is opened for writes).
 
 Usage::
 
@@ -36,6 +41,7 @@ import asyncio
 import logging
 
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from resilience_kit import FernetCipher
 from resilience_kit.exceptions import DecryptionError
@@ -54,12 +60,24 @@ ENCRYPTED_COLUMNS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
 )
 
 
+#: Rows read (and, when writing, updated) per batch. Bounds how much a
+#: single transaction locks and how much ciphertext is materialised at
+#: once, so a large encrypted table rotates without a table-long write
+#: transaction blocking concurrent writers to the auth hot path.
+_ROTATE_BATCH_SIZE = 500
+
+
 async def rotate_all(*, dry_run: bool = False) -> int:
     """Re-encrypt every registered encrypted column onto the primary key.
 
+    The sweep is **batched and resumable**, not a single transaction: each
+    table is walked by keyset pagination on its primary key and each batch
+    of re-encrypted rows commits in its own short transaction, so locks are
+    released between batches instead of held for the whole table.
+
     Args:
         dry_run: When ``True``, decrypt-probe and count rows that would be
-            rewritten but roll back instead of committing.
+            rewritten over a read-only connection — no writes are issued.
 
     Returns:
         The number of column values rotated (or that would be rotated in
@@ -67,50 +85,109 @@ async def rotate_all(*, dry_run: bool = False) -> int:
 
     Raises:
         DecryptionError: A stored token is not decryptable under any
-            configured key — the transaction is rolled back so no row is
-            partially rotated. Fix the key list and re-run.
+            configured key. The current batch's write transaction rolls
+            back, but batches committed earlier in the sweep stay rotated.
+            The command is idempotent, so fix the key list and re-run — the
+            already-rotated rows re-encrypt harmlessly.
     """
     engine = await get_app_engine()
     rotated = 0
     try:
-        async with engine.begin() as conn:
-            for table, pk, columns in ENCRYPTED_COLUMNS:
-                col_list = ", ".join(columns)
-                result = await conn.execute(
-                    text(f"SELECT {pk}, {col_list} FROM {table}")
-                )
-                for row in result.mappings():
-                    for col in columns:
-                        token = row[col]
-                        if not token:  # None / empty — stored unencrypted
-                            continue
-                        try:
-                            new_token = FernetCipher.rotate(token)
-                        except DecryptionError:
-                            logger.error(
-                                "Undecryptable token in %s.%s (%s=%s) — aborting; "
-                                "check RESILIENCE_CRYPTO__FIELD_ENCRYPTION_KEYS "
-                                "includes the key that wrote it.",
-                                table,
-                                col,
-                                pk,
-                                row[pk],
-                            )
-                            raise
-                        rotated += 1
-                        if not dry_run:
-                            await conn.execute(
-                                text(
-                                    f"UPDATE {table} SET {col} = :val WHERE {pk} = :pk"
-                                ),
-                                {"val": new_token, "pk": row[pk]},
-                            )
-            if dry_run:
-                await conn.rollback()
+        for table, pk, columns in ENCRYPTED_COLUMNS:
+            rotated += await _rotate_table(
+                engine, table=table, pk=pk, columns=columns, dry_run=dry_run
+            )
     finally:
         await engine.dispose()
     verb = "would rotate" if dry_run else "rotated"
     logger.info("Key rotation complete: %s %d encrypted value(s).", verb, rotated)
+    return rotated
+
+
+async def _rotate_table(
+    engine: AsyncEngine,
+    *,
+    table: str,
+    pk: str,
+    columns: tuple[str, ...],
+    dry_run: bool,
+) -> int:
+    """Rotate one table's encrypted columns via keyset-paginated batches.
+
+    Args:
+        engine: The application engine (kept open by the caller).
+        table: Table name (in-tree constant — safe to interpolate).
+        pk: Primary-key column used as the keyset cursor.
+        columns: Encrypted column names to re-encrypt.
+        dry_run: When ``True``, read and count only — no writes.
+
+    Returns:
+        The number of column values rotated (or that would be, dry-run).
+
+    Raises:
+        DecryptionError: Propagated from :meth:`FernetCipher.rotate` when a
+            stored token cannot be decrypted under the configured keys.
+    """
+    col_list = ", ".join(columns)
+    rotated = 0
+    last_pk: object | None = None
+    while True:
+        # Read a batch over a read-only connection so the scan never holds
+        # a write transaction open across the (CPU-bound) rotate step.
+        async with engine.connect() as conn:
+            if last_pk is None:
+                stmt = text(
+                    f"SELECT {pk}, {col_list} FROM {table} "
+                    f"ORDER BY {pk} LIMIT :limit"
+                )
+                params: dict[str, object] = {"limit": _ROTATE_BATCH_SIZE}
+            else:
+                stmt = text(
+                    f"SELECT {pk}, {col_list} FROM {table} "
+                    f"WHERE {pk} > :last ORDER BY {pk} LIMIT :limit"
+                )
+                params = {"last": last_pk, "limit": _ROTATE_BATCH_SIZE}
+            rows = (await conn.execute(stmt, params)).mappings().all()
+
+        if not rows:
+            break
+
+        # Re-encrypt in memory (plaintext is never materialised).
+        updates: list[tuple[str, str, object]] = []
+        for row in rows:
+            for col in columns:
+                token = row[col]
+                if not token:  # None / empty — stored unencrypted
+                    continue
+                try:
+                    new_token = FernetCipher.rotate(token)
+                except DecryptionError:
+                    logger.error(
+                        "Undecryptable token in %s.%s (%s=%s) — aborting; "
+                        "check RESILIENCE_CRYPTO__FIELD_ENCRYPTION_KEYS "
+                        "includes the key that wrote it.",
+                        table,
+                        col,
+                        pk,
+                        row[pk],
+                    )
+                    raise
+                rotated += 1
+                updates.append((col, new_token, row[pk]))
+        last_pk = rows[-1][pk]
+
+        # Commit this batch's writes in its own short transaction; locks
+        # are released before the next batch is read.
+        if not dry_run and updates:
+            async with engine.begin() as conn:
+                for col, new_token, row_pk in updates:
+                    await conn.execute(
+                        text(f"UPDATE {table} SET {col} = :val WHERE {pk} = :pk"),
+                        {"val": new_token, "pk": row_pk},
+                    )
+
+        if len(rows) < _ROTATE_BATCH_SIZE:
+            break
     return rotated
 
 
