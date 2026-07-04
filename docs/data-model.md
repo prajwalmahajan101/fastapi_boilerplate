@@ -28,8 +28,9 @@ narrative around it.
   `choices=` — admin / shell / raw-SQL paths cannot smuggle in
   unknown values.
 - Sensitive columns use `EncryptedString` (Fernet via
-  `field_encryption_key`). The `APIKey.secret` column is the
-  canonical example.
+  `RESILIENCE_CRYPTO__FIELD_ENCRYPTION_KEYS`, MultiFernet-rotatable —
+  see [`key-rotation.md`](key-rotation.md)). The `APIKey.secret` column
+  is the canonical example.
 
 ## Migration discipline
 

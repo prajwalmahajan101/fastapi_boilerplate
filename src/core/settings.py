@@ -201,10 +201,13 @@ class CoreSettings(BaseSettings):
     # ── Encryption + SSRF ─────────────────────────────────────────────
     # Fernet keys, SSRF private-IP blocking, and the outbound URL
     # allow-list are owned by ``resilience-kit``. Operators configure
-    # those via ``RESILIENCE_CRYPTO__FIELD_ENCRYPTION_KEY`` /
+    # those via ``RESILIENCE_CRYPTO__FIELD_ENCRYPTION_KEYS`` (an ordered
+    # list — primary first, trailing keys decrypt-only, for MultiFernet
+    # rotation; the singular ``RESILIENCE_CRYPTO__FIELD_ENCRYPTION_KEY``
+    # is a deprecated one-cycle alias) /
     # ``RESILIENCE_SSRF__BLOCK_PRIVATE_IPS`` /
     # ``RESILIENCE_SSRF__OUTBOUND_ALLOWLIST`` — see the migration note
-    # in the project README.
+    # in the project README and ``docs/key-rotation.md``.
 
     # ── Response security headers ──────────────────────────────────────
     # Toggle for SecurityHeadersMiddleware (HSTS, X-Content-Type-Options,

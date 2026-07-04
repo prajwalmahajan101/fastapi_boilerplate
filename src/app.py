@@ -67,8 +67,9 @@ async def _app_lifespan(app: FastAPI) -> AsyncIterator[None]:
     """
     configure(settings)
     # The kit's ``FernetCipher`` is lazy + env-guarded: in ``prod`` it
-    # refuses to build without ``RESILIENCE_CRYPTO__FIELD_ENCRYPTION_KEY``
-    # set; dev / test fall back to an insecure default with a one-time
+    # refuses to build without ``RESILIENCE_CRYPTO__FIELD_ENCRYPTION_KEYS``
+    # (or the deprecated singular ``…FIELD_ENCRYPTION_KEY``) set; dev /
+    # test fall back to an insecure default with a one-time
     # warning. The boot-time probe previously here is no longer needed —
     # if the key is unset the first encrypted-column read/write fails
     # with ``EncryptionConfigError`` and presents as a startup error.

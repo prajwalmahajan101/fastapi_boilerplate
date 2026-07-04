@@ -38,9 +38,6 @@ markers is preserved.
 | `db_pool_pre_ping` | `bool` | — | `True` |  |
 | `db_connect_timeout` | `int` | — | `5` |  |
 | `db_statement_timeout_ms` | `int` | — | `30000` |  |
-| `field_encryption_key` | `str | None` | — | `None` |  |
-| `secret_key` | `str | None` | — | `None` |  |
-| `ssrf_block_private_ips` | `bool` | — | `True` |  |
 | `security_headers_enabled` | `bool` | — | `True` |  |
 | `max_request_body_bytes` | `int` | — | `1048576` |  |
 | `openapi_docs_enabled` | `bool` | — | `False` |  |
@@ -57,11 +54,25 @@ markers is preserved.
 | `log_sanitize_max_list_items` | `int` | — | `10` |  |
 | `trust_proxy_headers` | `bool` | — | `False` |  |
 | `redis_urls` | `dict` | — | — |  |
-| `resilience_defaults` | `dict` | — | — |  |
-| `circuit_breaker_redis_alias` | `str` | — | `'default'` |  |
-| `circuit_breaker_key_prefix` | `str` | — | `'cb'` |  |
+| `auth_enabled_providers` | `list` | — | — |  |
+| `jwt_signing_key` | `pydantic.types.SecretStr | None` | — | `None` |  |
+| `jwt_algorithm` | `Literal` | — | `'HS256'` |  |
+| `jwt_issuer` | `str | None` | — | `None` |  |
+| `jwt_audience` | `str | None` | — | `None` |  |
+| `jwt_access_ttl_seconds` | `int` | — | `900` |  |
+| `jwt_refresh_ttl_seconds` | `int` | — | `1209600` |  |
+| `jwt_blacklist_cache_alias` | `str` | — | `'default'` |  |
+| `google_oauth_client_id` | `str | None` | — | `None` |  |
+| `google_oauth_client_secret` | `pydantic.types.SecretStr | None` | — | `None` |  |
+| `google_oauth_redirect_uri` | `str | None` | — | `None` |  |
+| `google_oauth_allowed_domains` | `list` | — | — |  |
 | `rate_limit_headers_enabled` | `bool` | — | `True` |  |
 | `rate_limit_redis_alias` | `str` | — | `'default'` |  |
+| `task_redis_alias` | `str` | — | `'default'` |  |
+| `task_queue_name` | `str` | — | `'default'` |  |
+| `task_max_tries` | `int` | — | `5` |  |
+| `celery_result_backend` | `str | None` | — | `None` |  |
+| `metrics_middleware_enabled` | `bool` | — | `False` |  |
 | `api_log_backend` | `Literal` | — | `'postgres'` |  |
 | `api_log_capture_request_body` | `bool` | — | `True` |  |
 | `api_log_capture_response_body` | `bool` | — | `True` |  |
@@ -69,8 +80,11 @@ markers is preserved.
 | `api_log_ttl_days` | `int` | — | `30` |  |
 | `api_log_sensitive_headers` | `list` | — | — |  |
 | `api_log_drain_timeout_seconds` | `float` | — | `30.0` |  |
+| `api_log_batch_size` | `int` | — | `100` |  |
+| `api_log_batch_max_interval_seconds` | `float` | — | `1.0` |  |
+| `api_log_batch_queue_size` | `int` | — | `5000` |  |
 | `app_name` | `str` | — | `'FastAPI Boilerplate'` |  |
-| `app_version` | `str` | — | `'0.1.0'` |  |
+| `app_version` | `str` | — | `'1.0.0'` |  |
 | `cors_enabled` | `bool` | — | `False` |  |
 | `cors_allow_origins` | `list` | — | `[]` |  |
 | `cors_allow_methods` | `list` | — | `[]` |  |
