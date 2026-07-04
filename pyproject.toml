@@ -28,3 +28,13 @@ directory = "htmlcov"
 
 [tool.coverage.xml]
 output = "coverage.xml"
+
+[tool.mypy]
+python_version = "3.12"
+
+# Third-party packages that ship no type information (no py.typed / no stubs
+# on PyPI). Silence the import-untyped errors here rather than scattering
+# per-line ignores at each import site.
+[[tool.mypy.overrides]]
+module = ["celery.*", "authlib.*"]
+ignore_missing_imports = true
