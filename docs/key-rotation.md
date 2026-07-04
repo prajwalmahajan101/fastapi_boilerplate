@@ -4,9 +4,11 @@
 rest by `resilience_kit.crypto.FernetCipher`, which is backed by
 `cryptography.fernet.MultiFernet` as of resilience-kit 0.2.0. Key material
 is an **ordered list**: the first key is the *primary* (it encrypts new
-writes); every key in the list is tried on decrypt. That is what makes
-zero-downtime rotation possible — ciphertext written under a retired key
-still decrypts while new writes move onto the new key.
+writes); every key in the list is tried on decrypt. That is what keeps the
+*read/write path* available throughout rotation — ciphertext written under a
+retired key still decrypts while new writes move onto the new key. (The
+bulk re-encryption in step 2 is batched rather than one long transaction —
+see that step — so it does not lock a large table end-to-end either.)
 
 Configure the list via:
 
@@ -35,17 +37,26 @@ Deploy. New writes now use `K_NEW`; reads still resolve `K_OLD` ciphertext.
 ### 2. Re-encrypt stored ciphertext
 
 Run the rotation command. It walks every registered `EncryptedString`
-column at the SQL layer (never materialising plaintext), calls
-`FernetCipher.rotate()` on each token, and commits in one transaction:
+column at the SQL layer (never materialising plaintext) and calls
+`FernetCipher.rotate()` on each token:
 
 ```bash
 python -m src.management.rotate_encryption --dry-run   # count affected rows
 python -m src.management.rotate_encryption             # rotate + commit
 ```
 
-Safe to re-run. If any token cannot be decrypted under the configured keys
-the whole transaction rolls back — fix the key list (the offending key is
-missing) and re-run before proceeding.
+The sweep is **batched**: each table is walked by keyset pagination on its
+primary key (`_ROTATE_BATCH_SIZE` rows at a time) and each batch commits in
+its own short transaction. Locks are released between batches, so a large
+encrypted table rotates without a table-long write transaction blocking
+concurrent writers on the auth hot path. `--dry-run` is a read-only pass —
+it opens no write transaction at all.
+
+Safe to re-run. If a token cannot be decrypted under the configured keys the
+run aborts: the current batch rolls back, but batches already committed stay
+rotated. Because rotation is idempotent (Fernet tokens carry a fresh
+timestamp/IV each write), just fix the key list — the offending key is
+missing — and re-run; the already-rotated rows re-encrypt harmlessly.
 
 ### 3. Drop the retired key
 
