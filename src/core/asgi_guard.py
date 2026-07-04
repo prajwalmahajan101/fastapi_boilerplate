@@ -13,16 +13,9 @@ length or a matching prefix through timing.
 from __future__ import annotations
 
 import hmac
-from collections.abc import Awaitable, Callable
 from typing import cast
 
-# Minimal ASGI type aliases — avoids a dependency on ``asgiref`` just for
-# annotations. An ASGI app is a callable of ``(scope, receive, send)``.
-Scope = dict[str, object]
-Message = dict[str, object]
-Receive = Callable[[], Awaitable[Message]]
-Send = Callable[[Message], Awaitable[None]]
-ASGIApp = Callable[[Scope, Receive, Send], Awaitable[None]]
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 
 class BearerTokenGuard:
