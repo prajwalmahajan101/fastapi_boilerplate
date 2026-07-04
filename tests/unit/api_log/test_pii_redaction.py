@@ -16,8 +16,7 @@ from src.core.runtime import get_settings
 def test_scrub_masks_india_fintech_identifiers() -> None:
     """PAN / Aadhaar / IFSC / mobile embedded in a string are masked."""
     out = scrub_body_pii(
-        "PAN ABCDE1234F, Aadhaar 2345 6789 0123, IFSC HDFC0001234, "
-        "call 9876543210"
+        "PAN ABCDE1234F, Aadhaar 2345 6789 0123, IFSC HDFC0001234, call 9876543210"
     )
     assert "ABCDE1234F" not in out
     assert "234567890123" not in out.replace(" ", "")
