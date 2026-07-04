@@ -4,6 +4,15 @@
 ``cache``, ``rate_limit``, …). Each alias gets one ``redis.asyncio.Redis``
 instance backed by a connection pool, created on first use and re-used
 across all callers in the process.
+
+Relationship to the kit's shared client (resilience-kit 0.2.0, ADR-0017):
+this is the **app-level** pool — it backs ``wait_for_redis`` (the boot
+probe) and app-owned Redis reads (e.g. the JWT blacklist). The kit's
+cache / breaker / throttle providers keep their **own** single shared
+client per URL (``resilience_kit._redis.get_redis_client``), which the
+kit closes on ``resilience_lifespan`` exit. The two pools are distinct
+objects — closing one here never touches the kit's — so there is no
+double-close; they are kept separate deliberately.
 """
 
 from __future__ import annotations

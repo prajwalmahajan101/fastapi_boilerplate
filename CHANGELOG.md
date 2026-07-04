@@ -7,7 +7,36 @@ and the project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
-_No changes yet._
+### Migrated
+
+- **Bumped `resilience-kit` `0.1.0` → `0.2.0`**
+  ([ADR-0004](docs/decisions/0004-adopt-resilience-kit-0.2.0.md), adds the
+  `[prometheus]` extra). Lifted the boilerplate's own `pydantic-settings`
+  (`>=2.14.2`) and `starlette` (`>=1.3.1`) pins to clear the CVEs
+  `pip-audit` flagged (GHSA-4xgf-cpjx-pc3j, PYSEC-2026-248/249) — the
+  kit's lockfile bumps don't propagate to consumers.
+
+### Added
+
+- **Body-embedded PII redaction** in the `api_log` pipeline. Captured
+  request/response bodies pass through resilience-kit's value-scanning
+  `RegexRedactor` (`india_fintech` set) so a PAN / Aadhaar / IFSC / mobile
+  / bank-account (or email / Luhn-card) inside a body value is masked to
+  `[REDACTED]` before persistence. Settings: `api_log_redact_body_pii`
+  (default on), `api_log_pii_pattern_set` (`india_fintech` | `global`).
+- **Field-encryption key rotation** via `MultiFernet`. Config moves to the
+  ordered `RESILIENCE_CRYPTO__FIELD_ENCRYPTION_KEYS`; new
+  `python -m src.management.rotate_encryption` re-encrypts stored
+  ciphertext onto the primary key without exposing plaintext. Runbook:
+  [`docs/key-rotation.md`](docs/key-rotation.md). The singular
+  `FIELD_ENCRYPTION_KEY` stays a deprecated one-cycle alias.
+- **Prometheus metrics.** `src/core/metrics.py` now forwards to
+  resilience-kit's active sink (`RESILIENCE_METRICS_SINK`); opt-in
+  `GET /metrics` via `METRICS_ENDPOINT_ENABLED`. `otel` / `sentry` are
+  one-env-var switches.
+- **Outbound idempotency.** Documented `auto_idempotency_key` for
+  non-idempotent `AsyncAPIClient` calls; the idempotency kwargs are kept
+  out of the audit `extra` column.
 
 ## [1.0.0] — 2026-06-11
 
