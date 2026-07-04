@@ -10,7 +10,7 @@ and the project follows [Semantic Versioning](https://semver.org/).
 ### Migrated
 
 - **Bumped `resilience-kit` `0.1.0` → `0.2.0`**
-  ([ADR-0004](docs/decisions/0004-adopt-resilience-kit-0.2.0.md), adds the
+  ([ADR-0004](docs/adr/0004-adopt-resilience-kit-0.2.0.md), adds the
   `[prometheus]` extra). Lifted the boilerplate's own `pydantic-settings`
   (`>=2.14.2`) and `starlette` (`>=1.3.1`) pins to clear the CVEs
   `pip-audit` flagged (GHSA-4xgf-cpjx-pc3j, PYSEC-2026-248/249) — the
@@ -51,7 +51,7 @@ e2e) wired into CI against real Postgres + Redis service containers.
 ### Migrated
 
 - **Outsourced the resilience subsystem to `resilience-kit==0.1.0`
-  ([ADR-0003](docs/decisions/0003-outsource-resilience-to-resilience-kit.md)).**
+  ([ADR-0003](docs/adr/0003-outsource-resilience-to-resilience-kit.md)).**
   Circuit breaker, retry, cache, throttle, recovery monitor, SSRF
   guard, Fernet field crypto, and the async HTTP client now come from
   the kit. `src/core/resilience/`, `src/core/utils/http_client/`,
@@ -67,7 +67,7 @@ e2e) wired into CI against real Postgres + Redis service containers.
   `resilience_kit.adapters._envelope.from_exception` into the
   boilerplate's `ErrorEnvelope`). The kit's bundled handlers are
   deliberately not installed — see
-  [ADR-0002](docs/decisions/0002-exception-http-registry.md).
+  [ADR-0002](docs/adr/0002-exception-http-registry.md).
 - Operator ergonomics preserved via
   `resilience_kit.runtime.legacy_env_alias()` at the top of
   `src/core/settings.py` — pre-M7 env-var names

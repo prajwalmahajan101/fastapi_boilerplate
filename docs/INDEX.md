@@ -44,7 +44,7 @@ this folder is for the cross-cutting "how + why" of the platform.
 |---|---|
 | [`testing.md`](testing.md) | Three-tier test layout (unit / integration / e2e) |
 | [`adding-a-new-app.md`](adding-a-new-app.md) | Step-by-step for adding a new resource |
-| [`decisions/`](decisions/) | Architectural Decision Records (ADRs) |
+| [`adr/`](adr/) | Architectural Decision Records (ADRs) |
 
 ## Module references
 

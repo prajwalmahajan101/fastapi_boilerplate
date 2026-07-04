@@ -24,7 +24,7 @@
   together; the service exposes the steps as individual methods.
 - **Catching `BaseCustomError` to translate it** — don't. The central
   exception handler maps every registered family to its HTTP status
-  ([ADR-0002](../../docs/decisions/0002-exception-http-registry.md)).
+  ([ADR-0002](../../docs/adr/0002-exception-http-registry.md)).
   Let it propagate.
 - **Whitelisting `allowed_filter_fields` ad-hoc** — declare it as a
   class attribute on the service so the listing surface is auditable in

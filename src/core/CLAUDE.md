@@ -60,10 +60,10 @@ into a mechanical gate.
   real circular import), keep it lazy but make the reason explicit in
   a one-line comment.
 - **A new exception family without registration** — see
-  [ADR-0002](../../docs/decisions/0002-exception-http-registry.md).
+  [ADR-0002](../../docs/adr/0002-exception-http-registry.md).
   The ordering test catches you before CI does.
 - **Touching the audit pipeline** — read
-  [ADR-0001](../../docs/decisions/0001-fire-and-forget-audit-pipeline.md)
+  [ADR-0001](../../docs/adr/0001-fire-and-forget-audit-pipeline.md)
   first; the fire-and-forget contract is load-bearing.
 
 ## Reference examples in this repo

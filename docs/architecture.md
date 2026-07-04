@@ -101,7 +101,7 @@ after logging them.
 handlers (cache-hit reads, 304 paths, in-memory fallbacks) routinely
 land in the 0.1–1 ms range, and dashboards or alerts that consume the
 column should not truncate to int. See
-[ADR-0001](decisions/0001-fire-and-forget-audit-pipeline.md) for the
+[ADR-0001](adr/0001-fire-and-forget-audit-pipeline.md) for the
 fire-and-forget design rationale.
 
 ## Resilience layer
@@ -110,13 +110,13 @@ fire-and-forget design rationale.
 throttle/rate-limit, the recovery monitor, the async-singleton
 providers, and the in-memory fallback all live in the kit, not in
 this repo. See
-[ADR-0003](decisions/0003-outsource-resilience-to-resilience-kit.md).
+[ADR-0003](adr/0003-outsource-resilience-to-resilience-kit.md).
 
 The boilerplate adds two thin bridges on top of the kit
 (`src/core/middleware/request_id_bridge.py` for request-id
 propagation; `src/app.py::kit_error_handler` for envelope
 translation — kit handlers are deliberately not installed, see
-[ADR-0002](decisions/0002-exception-http-registry.md)) and wires the
+[ADR-0002](adr/0002-exception-http-registry.md)) and wires the
 kit's recovery monitor and health-snapshot into the FastAPI lifespan
 and `/readyz`. Concrete operator-facing details — backend selection,
 fallback semantics, scope and global-throttle behaviour, recovery

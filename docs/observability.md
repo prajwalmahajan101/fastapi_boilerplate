@@ -90,7 +90,7 @@ are paired with `@log_outbound_request`. See
 ## Recovery monitor
 
 The recovery monitor is owned by `resilience-kit` (see
-[ADR-0003](decisions/0003-outsource-resilience-to-resilience-kit.md));
+[ADR-0003](adr/0003-outsource-resilience-to-resilience-kit.md));
 the kit polls every resilience provider whose Redis alias degraded at
 boot and resets the cached backend once Redis comes back. The
 boilerplate launches it as a singleton background task in the

@@ -60,7 +60,7 @@ no one raises; the ADR below covers why the registry exists at all.
 3. Add one `register_exception_mapping(...)` call beside the existing
    registrations in `src/core/exceptions/handlers.py`.
 
-The ADR — [`decisions/0002-exception-http-registry.md`](decisions/0002-exception-http-registry.md) —
+The ADR — [`adr/0002-exception-http-registry.md`](adr/0002-exception-http-registry.md) —
 explains why the registry beats per-route `responses=` declarations.
 
 ## OpenAPI
