@@ -13,10 +13,15 @@ cross-cutting infrastructure you'd otherwise rebuild every time:
   [`resilience-kit`](https://pypi.org/project/resilience-kit/); the
   boilerplate adds the envelope + request-id bridges.*
 - **Structured logging** with request-id propagation + log sanitisation.
-- **API audit log** — fire-and-forget request/response capture (Postgres/Noop).
+- **API audit log** — fire-and-forget request/response capture (Postgres/Noop),
+  with body-embedded PII redaction (PAN / Aadhaar / IFSC / card / email …).
+- **Observability** — RED-style metrics forwarded to `resilience-kit`'s
+  pluggable sink (Prometheus / OpenTelemetry / Sentry) plus an opt-in,
+  bearer-token-gated `GET /metrics` endpoint.
 - **Async SQLAlchemy** base model / repository / service classes.
 - **Security middleware** — CSP, HSTS, body-size cap, selective CORS — plus
-  AWS Secrets Manager settings and S3 / SES / SSRF-safe HTTP helpers.
+  AWS Secrets Manager settings, S3 / SES / SSRF-safe HTTP helpers, and
+  field-encryption **key rotation** (`python -m src.management.rotate_encryption`).
 - **Health probes** (`/healthz`, `/readyz`) wired to DB + resilience backends.
 
 The `Item` resource and `/api/v1/hello` route are **examples** that
@@ -89,8 +94,8 @@ defaults**. See [`.env.example`](.env.example) for the available knobs.
 ### Resilience-kit env vars
 
 Circuit-breaker thresholds, retry budgets, cache/throttle backend
-selection, Redis aliases, key prefixes, the Fernet key, and the SSRF
-allow-list are owned by `resilience-kit` and read from
+selection, Redis aliases, key prefixes, the ordered Fernet key list, and
+the SSRF allow-list are owned by `resilience-kit` and read from
 `RESILIENCE_*`-prefixed env vars consumed by
 `resilience_kit.settings.ResilienceSettings`. The boilerplate's old
 `CIRCUIT_BREAKER_*`, `CACHE_KEY_PREFIX`, `FIELD_ENCRYPTION_KEY`,
@@ -99,12 +104,15 @@ no longer read. Common translations:
 
 | Old boilerplate env var | New kit env var |
 |---|---|
-| `FIELD_ENCRYPTION_KEY` | `RESILIENCE_CRYPTO__FIELD_ENCRYPTION_KEY` |
+| `FIELD_ENCRYPTION_KEY` | `RESILIENCE_CRYPTO__FIELD_ENCRYPTION_KEYS` (ordered list; singular `…_KEY` is a deprecated one-cycle alias) |
 | `SSRF_BLOCK_PRIVATE_IPS` | `RESILIENCE_SSRF__BLOCK_PRIVATE_IPS` |
 | `OUTBOUND_URL_ALLOWLIST` | `RESILIENCE_SSRF__OUTBOUND_ALLOWLIST` |
 | `CIRCUIT_BREAKER_BACKEND` | `RESILIENCE_BACKEND` |
 | `CIRCUIT_BREAKER_REDIS_ALIAS` | `RESILIENCE_REDIS_URL` (URL, not alias) |
 | `CACHE_KEY_PREFIX` / `CIRCUIT_BREAKER_KEY_PREFIX` | `RESILIENCE_DEFAULTS__*` |
+
+Rotating field-encryption keys is a documented three-step flow — see
+[`docs/key-rotation.md`](docs/key-rotation.md).
 
 Boilerplate-owned knobs (`RATE_LIMIT_REDIS_ALIAS`, `API_LOG_*`,
 `CORS_*`, `SECURITY_HEADERS_ENABLED`, `METRICS_MIDDLEWARE_ENABLED`,
