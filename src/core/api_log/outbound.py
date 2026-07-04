@@ -10,6 +10,19 @@ Dormant: not currently applied to any service. Uncovered until a
 service decorates an outbound call with ``@log_outbound_request``; do
 not import from a request-path file without adding a matching test.
 Tracked by ``tests/unit/scripts/test_no_dormant_imports.py``.
+
+Idempotency: outbound calls should use the kit's ``AsyncAPIClient`` with
+``auto_idempotency_key=True`` (or an explicit ``idempotency_key=``) for
+non-idempotent verbs — e.g. a disbursal/payment ``post``::
+
+    await client.post(url, json=payload, auto_idempotency_key=True)
+
+The kit resolves the ``Idempotency-Key`` header once, before its retry
+loop, so a POST retried after a timeout sends the byte-identical key and
+the upstream dedupes instead of double-processing (ADR-0012). Those two
+kwargs are filtered out of the audit ``extra`` column by
+:func:`_build_outbound_log`; the resolved header lands in
+``request_headers``.
 """
 
 from __future__ import annotations
@@ -233,6 +246,12 @@ def _build_outbound_log(
         "json",
         "timeout",
         "check_ssrf",
+        # AsyncAPIClient idempotency plumbing (resilience-kit 0.2.0) — kept
+        # out of the ``extra`` diagnostic column; the resolved
+        # ``Idempotency-Key`` header is already captured under
+        # request_headers.
+        "idempotency_key",
+        "auto_idempotency_key",
     }
     extra_ctx = {
         k: audit_safe(v) for k, v in func_kwargs.items() if k not in _http_keys
