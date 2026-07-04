@@ -74,7 +74,7 @@ markers is preserved.
 | `celery_result_backend` | `str | None` | — | `None` |  |
 | `metrics_middleware_enabled` | `bool` | — | `False` |  |
 | `metrics_endpoint_enabled` | `bool` | — | `False` |  |
-| `metrics_auth_token` | `str | None` | — | `None` |  |
+| `metrics_auth_token` | `pydantic.types.SecretStr | None` | — | `None` |  |
 | `api_log_backend` | `Literal` | — | `'postgres'` |  |
 | `api_log_capture_request_body` | `bool` | — | `True` |  |
 | `api_log_capture_response_body` | `bool` | — | `True` |  |
