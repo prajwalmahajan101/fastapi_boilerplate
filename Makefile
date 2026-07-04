@@ -25,6 +25,10 @@ PYTHON_IMAGE := python:3.12-slim
 # non-reproducible findings. Refresh alongside the quarterly dep audit.
 PIP_AUDIT_VERSION  := 2.7.3
 CYCLONEDX_VERSION  := 7.3.0
+# pip-tools too: an unpinned pip-compile both resolves against whatever is
+# latest on PyPI *at run time* and changes its output format across releases,
+# so `deps-check` would drift over time with zero real dependency changes.
+PIP_TOOLS_VERSION  := 7.4.1
 
 # Ephemeral audit container needs the build-time system packages that
 # the Dockerfile installs to compile asyncpg / psycopg-style native
@@ -78,15 +82,28 @@ deps-check:  ## Verify each requirements/*.txt is in sync with its .in (fails on
 	@set -e; \
 	for layer in base dev; do \
 		echo "=== deps-check: requirements/$$layer.{in,txt} ==="; \
-		if [ "$$layer" = "dev" ]; then extra_flags="--allow-unsafe"; else extra_flags=""; fi; \
 		docker run --rm -v "$(CURDIR):/repo:ro" -w /repo $(PYTHON_IMAGE) \
-			sh -c "$(AUDIT_SYSTEM_DEPS) && pip install --quiet pip-tools && \
-				pip-compile --quiet $$extra_flags \
-					--output-file=/tmp/$$layer.txt requirements/$$layer.in && \
-				diff -u requirements/$$layer.txt /tmp/$$layer.txt > /dev/null \
-					|| { echo '!! drift: requirements/$$layer.txt is out of sync with $$layer.in — run pip-compile'; exit 1; }"; \
+			sh -c "$(AUDIT_SYSTEM_DEPS) && pip install --quiet pip-tools==$(PIP_TOOLS_VERSION) && \
+				cp requirements/$$layer.txt /tmp/$$layer.txt && \
+				pip-compile --quiet --output-file=/tmp/$$layer.txt requirements/$$layer.in && \
+				grep -E '^[a-zA-Z0-9]' requirements/$$layer.txt | sort > /tmp/$$layer.committed.pins && \
+				grep -E '^[a-zA-Z0-9]' /tmp/$$layer.txt          | sort > /tmp/$$layer.fresh.pins && \
+				diff -u /tmp/$$layer.committed.pins /tmp/$$layer.fresh.pins \
+					|| { echo '!! drift: requirements/$$layer.txt pins are out of sync with $$layer.in — run pip-compile'; exit 1; }"; \
 	done; \
 	echo "all layers in sync."
+# Determinism notes for the block above:
+#   * pip-tools is version-pinned (PIP_TOOLS_VERSION) so output is stable.
+#   * The committed lockfile is copied to /tmp *first* and used as the
+#     --output-file, so pip-compile honours its existing pins instead of
+#     re-resolving to whatever is newest on PyPI — drift now means a real
+#     change in the .in, not the passage of time.
+#   * Only the version-pin lines are compared (the `pkg==ver` rows); the
+#     auto-generated header and `# via` provenance comments carry the
+#     container's /repo mount path + tool-version banner, which are noise.
+#   * No --allow-unsafe: the committed lockfiles were generated without it
+#     (they pin no pip/setuptools). Add it here only alongside regenerating
+#     the lockfiles to match.
 
 sbom:  ## Generate CycloneDX SBOM for base deps at sbom/base-sbom.json
 	@mkdir -p sbom
