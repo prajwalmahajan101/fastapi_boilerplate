@@ -26,8 +26,11 @@ Pin `resilience-kit==0.2.0` (with the `[prometheus]` extra) and adopt four
 of its new surfaces:
 
 1. **Body-PII redaction** — route captured request/response bodies through
-   the kit's value-scanning `RegexRedactor` (`india_fintech` pattern set)
-   in `api_log`'s `serialize_body`.
+   the kit's value-scanning `RegexRedactor` (`india_fintech` pattern set) at
+   every body-capture site: `api_log`'s `serialize_body` for serialized
+   handler results, and directly in `_build_inbound_log` for the raw inbound
+   request body and a rendered `Response.body` (both bypass `serialize_body`,
+   so redaction is applied there too — always before length truncation).
 2. **Key rotation** — move crypto config to the ordered
    `RESILIENCE_CRYPTO__FIELD_ENCRYPTION_KEYS` (MultiFernet) and add
    `src/management/rotate_encryption.py` to re-encrypt stored ciphertext
