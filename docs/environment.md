@@ -88,7 +88,7 @@ markers is preserved.
 | `api_log_batch_max_interval_seconds` | `float` | — | `1.0` |  |
 | `api_log_batch_queue_size` | `int` | — | `5000` |  |
 | `app_name` | `str` | — | `'FastAPI Boilerplate'` |  |
-| `app_version` | `str` | — | `'1.0.0'` |  |
+| `app_version` | `str` | — | `'1.1.0'` |  |
 | `cors_enabled` | `bool` | — | `False` |  |
 | `cors_allow_origins` | `list` | — | `[]` |  |
 | `cors_allow_methods` | `list` | — | `[]` |  |
