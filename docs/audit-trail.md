@@ -44,6 +44,14 @@ truncation so a match is never half-exposed by the length cap. Toggle with
 wraps the outbound HTTP path and pairs each call with a logged row
 carrying the destination URL, request/response payloads, and status.
 
+For non-idempotent verbs (payment / disbursal `post`/`put`/`patch`), pass
+`auto_idempotency_key=True` (or an explicit `idempotency_key=`): the kit
+fixes the `Idempotency-Key` header once before its retry loop, so a call
+retried after a timeout sends the byte-identical key and the upstream
+dedupes instead of double-processing. The two idempotency kwargs are kept
+out of the audit `extra` column; the resolved header is captured under
+`request_headers`.
+
 ## Dispatch
 
 `dispatch.fire_and_forget(...)` accepts a coroutine and schedules
